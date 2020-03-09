@@ -1,3 +1,6 @@
 /.ipynb_checkpoints/
-/.idea/
-
+/.idea/*
+.idea\*
+.idea/misc.xml
+.idea/Text-Mining.iml
+.idea/workspace.xml
