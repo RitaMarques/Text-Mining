@@ -9,7 +9,7 @@ os.chdir(r'C:\Users\Sofia\OneDrive - NOVAIMS\Nova IMS\Mestrado\2º semestre\
 
 def import_folder_files(directory):
     f = []
-    for root, dirs, files in os.walk(directory):
+    for files in os.walk(directory):
         for file in files:
             if file.endswith(".txt"):
                 f1 = open(directory + '\\' + file, "r", encoding='utf-8')
