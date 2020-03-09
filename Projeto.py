@@ -1,16 +1,18 @@
 import pandas as pd
 import os
+import nltk
 
-os.chdir(r'C:\Users\Sofia\OneDrive - NOVAIMS\Nova IMS\Mestrado\2º semestre\
-        Text Mining\Projeto\Text-Mining\Corpora\train')
+os.chdir(r'./Corpora/train')
 
 # IMPORT TRAIN FILES
 
 
 def import_folder_files(directory):
     f = []
-    for files in os.walk(directory):
+    for name, lista,files in os.walk(directory):
+
         for file in files:
+
             if file.endswith(".txt"):
                 f1 = open(directory + '\\' + file, "r", encoding='utf-8')
                 f1 = f1.read()
@@ -32,8 +34,19 @@ textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo
 
 df = pd.DataFrame(columns=['Text','Label'])
 
+df = df[0:0]
 for lista in textos_labels:
-    df_aux = pd.DataFrame({'Text': lista[0],
-                           'Label': lista[1]})
+    df_aux = pd.DataFrame({'Label': lista[1],
+                            'Text': lista[0]
+                            })
 
     df = df.append(df_aux, ignore_index=True)
+
+# lowercase
+df['Text'] = df['Text'].str.lower()
+
+# stopwords
+stopwords = nltk.corpus.stopwords.words('portuguese')
+print(len(stopwords))
+
+nltk.FreqDist()
