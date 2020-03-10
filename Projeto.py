@@ -1,6 +1,9 @@
 import pandas as pd
 import os
 import nltk
+from nltk.stem import SnowballStemmer
+from nltk.stem.wordnet import WordNetLemmatizer
+from bs4 import BeautifulSoup
 
 os.chdir(r'./Corpora/train')
 
@@ -9,7 +12,7 @@ os.chdir(r'./Corpora/train')
 
 def import_folder_files(directory):
     f = []
-    for name, lista,files in os.walk(directory):
+    for name, lista, files in os.walk(directory):
 
         for file in files:
 
@@ -42,11 +45,54 @@ for lista in textos_labels:
 
     df = df.append(df_aux, ignore_index=True)
 
-# lowercase
-df['Text'] = df['Text'].str.lower()
+####################################
+#PRE - PROCESSING
+####################################
+def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False):
+    ''' 
+    Does lowercase, stopwords
+    '''
+    # lowercase
+    df['Text'] = df['Text'].str.lower()
 
-# stopwords
-stopwords = nltk.corpus.stopwords.words('portuguese')
-print(len(stopwords))
+    # stopwords
+    stopwords = nltk.corpus.stopwords.words('portuguese')
+    # still have to be removed
 
-nltk.FreqDist()
+    # remove tags
+    for idx, row in df.iterrows():
+        df.iloc[idx,1] = BeautifulSoup(row[1]).get_text()
+
+
+    # replace \n with a space
+    for idx, row in df.iterrows():
+        df.iloc[idx,1] = row[1].replace('\n',' ')
+
+        # Stemmer
+        if stemmer_bol == True:
+            snowball_stemmer = SnowballStemmer('portuguese')
+
+            df.iloc[idx,1] = ' '.join(snowball_stemmer.stem(word)
+                                    for word in row[1].split())
+
+        # Lemmatizer
+        elif lemmatizer_bol == True:
+            lemma = WordNetLemmatizer()
+            df.iloc[idx,1] = ' '.join(lemma.lemmatize(word)
+                                    for word in row[1].split())
+
+    # split sentences in words
+    df['Text'] = df.Text.str.split(' ')
+
+    return df
+
+
+## TESTE stem
+print(df.Text[0])
+snowball_stemmer = SnowballStemmer('portuguese')
+' '.join(snowball_stemmer.stem(word) for word in df.Text[0].split())
+
+## TESTE lema
+print(df.Text[0])
+lemma = WordNetLemmatizer()
+' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
