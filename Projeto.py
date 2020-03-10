@@ -50,7 +50,7 @@ for lista in textos_labels:
 ####################################
 # PRE - PROCESSING
 ####################################
-def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
+def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
     '''
@@ -62,10 +62,12 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
         df.iloc[idx, 1] = BeautifulSoup(row[1]).get_text()
 
     # create stopwords
-    if stopwords == True:
+    if stopwords_bol == True:
         stop = stopwords.words('portuguese')
 
         for idx, row in df.iterrows():
+            df.iloc[idx, 1] = row[1].replace('\n', ' ')
+
             sentence = []
             for word in row.Text.split(' '):
                 if word not in stop:
@@ -74,15 +76,12 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
 
     # replace \n with a space
     for idx, row in df.iterrows():
-        df.iloc[idx, 1] = row[1].replace('\n', ' ')
-
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
             
             df.iloc[idx, 1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
-
         # Lemmatizer
         elif lemmatizer_bol == True:
             lemma = WordNetLemmatizer()
