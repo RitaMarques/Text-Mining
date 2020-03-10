@@ -7,19 +7,20 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
 import re
 
-os.chdir(r'./Corpora/train')
-
-#------------------------------------------------------
+#os.chdir(r'./Corpora/train')
+basedir=r'./Corpora/train/'
 # IMPORT TRAIN FILES
-#------------------------------------------------------
+
+
 def import_folder_files(directory):
     f = []
-    for name, lista, files in os.walk(directory):
+    fulldir=basedir+directory
+    for name, lista, files in os.walk(fulldir):
 
         for file in files:
 
             if file.endswith(".txt"):
-                f1 = open(basedir + directory + '/' + file, "r", encoding='utf-8')
+                f1 = open(fulldir + '\\' + file, "r", encoding='utf-8')
                 f1 = f1.read()
                 f.append(f1)
     return f
