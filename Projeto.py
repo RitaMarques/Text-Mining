@@ -90,7 +90,7 @@ def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuatio
 
     # remove all punctuation
     if punctuation_all == True:
-        df.Text = re.sub('[^a-zA-Z]', ' ', df.Text)
+        df["Text"] = df['Text'].str.replace('[^a-zA-Z]',' ')
 
     # split sentences in words
     #df['Text'] = df.Text.str.split(' ')
