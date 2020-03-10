@@ -55,14 +55,20 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False):
     # lowercase
     df['Text'] = df['Text'].str.lower()
 
-    # stopwords
-    stopwords = nltk.corpus.stopwords.words('portuguese')
-    # still have to be removed
-
     # remove tags
     for idx, row in df.iterrows():
         df.iloc[idx,1] = BeautifulSoup(row[1]).get_text()
 
+    # create stopwords
+    if stopwords == True:
+        stopwords = nltk.corpus.stopwords.words('portuguese')
+
+        for idx, row in df.iterrows():
+            sentence = []
+            for word in row.Text:
+                if word not in stopwords:
+                    sentence = sentence.append(word)
+            ' '.join(word for word in sentence)
 
     # replace \n with a space
     for idx, row in df.iterrows():
@@ -82,7 +88,8 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False):
                                     for word in row[1].split())
 
     # split sentences in words
-    df['Text'] = df.Text.str.split(' ')
+    #df['Text'] = df.Text.str.split(' ')
+
 
     return df
 
