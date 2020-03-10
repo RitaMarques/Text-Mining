@@ -68,8 +68,8 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
             sentence = []
             for word in row.Text:
                 if word not in stopwords:
-                    sentence = sentence.append(word)
-            ' '.join(word for word in sentence)
+                    sentence.append(word)
+            df.iloc[idx,1] = ' '.join(word for word in sentence)
 
     # replace \n with a space
     for idx, row in df.iterrows():
@@ -110,4 +110,4 @@ lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
 
 
-df = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False)
+df_cleaned = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False)
