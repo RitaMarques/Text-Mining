@@ -9,12 +9,13 @@ import re
 
 #os.chdir(r'./Corpora/train')
 basedir=r'./Corpora/train/'
+
+#------------------------------------------------------
 # IMPORT TRAIN FILES
-
-
+#------------------------------------------------------
 def import_folder_files(directory):
     f = []
-    fulldir=basedir+directory
+    fulldir = basedir + directory
     for name, lista, files in os.walk(fulldir):
 
         for file in files:
@@ -51,7 +52,7 @@ for lista in textos_labels:
 #------------------------------------------------------
 # PRE - PROCESSING
 #------------------------------------------------------
-def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
+def clean(df, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
     '''
@@ -60,18 +61,18 @@ def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuatio
 
     # remove all punctuation
     if punctuation_all == True:
-        df["Text"] = df['Text'].str.replace('[^a-zA-Z]',' ')
+        df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
 
-    # remove tags
     for idx, row in df.iterrows():
+        # remove tags
         df.iloc[idx, 1] = BeautifulSoup(row[1]).get_text()
 
-    # create stopwords
-    if stopwords_bol == True:
-        stop = stopwords.words('portuguese')
+        # replace \n with a space
+        df.iloc[idx, 1] = row[1].replace('\n', ' ')
 
-        for idx, row in df.iterrows():
-            df.iloc[idx, 1] = row[1].replace('\n', ' ')
+        # remove stopwords
+        if stopwords_bol == True:
+            stop = stopwords.words('portuguese') # create stopwords
 
             sentence = []
             for word in row.Text.split(' '):
@@ -79,14 +80,13 @@ def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuatio
                     sentence.append(word)
             df.iloc[idx, 1] = ' '.join(word for word in sentence)
 
-    # replace \n with a space
-    for idx, row in df.iterrows():
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
             
             df.iloc[idx, 1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
+
         # Lemmatizer
         elif lemmatizer_bol == True:
             lemma = WordNetLemmatizer()
@@ -96,7 +96,6 @@ def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuatio
 
     # split sentences in words
     #df['Text'] = df.Text.str.split(' ')
-
 
     return df
 
@@ -112,4 +111,4 @@ lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
 
 
-df_cleaned = clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
+df_cleaned = clean(df, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
