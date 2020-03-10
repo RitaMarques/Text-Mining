@@ -48,7 +48,7 @@ for lista in textos_labels:
 ####################################
 #PRE - PROCESSING
 ####################################
-def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False):
+def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
     '''
@@ -87,6 +87,10 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False):
             df.iloc[idx,1] = ' '.join(lemma.lemmatize(word)
                                     for word in row[1].split())
 
+    # remove all punctuation
+    if punctuation_all == True:
+        df.Text = re.sub('[^a-zA-Z]', ' ', df.Text)
+
     # split sentences in words
     #df['Text'] = df.Text.str.split(' ')
 
@@ -103,3 +107,6 @@ snowball_stemmer = SnowballStemmer('portuguese')
 print(df.Text[0])
 lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
+
+
+df = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False)
