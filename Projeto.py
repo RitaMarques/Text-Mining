@@ -5,10 +5,10 @@ from nltk.stem import SnowballStemmer
 from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
 
-os.chdir(r'./Corpora/train')
-
+#os.chdir(r'/Corpora/train')
+os.getcwd()
 # IMPORT TRAIN FILES
-
+basedir=r"/Corpora/train/"
 
 def import_folder_files(directory):
     f = []
@@ -17,7 +17,7 @@ def import_folder_files(directory):
         for file in files:
 
             if file.endswith(".txt"):
-                f1 = open(directory + '\\' + file, "r", encoding='utf-8')
+                f1 = open(basedir + directory + '/' + file, "r", encoding='utf-8')
                 f1 = f1.read()
                 f.append(f1)
     return f
