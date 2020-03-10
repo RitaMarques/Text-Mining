@@ -5,10 +5,10 @@ from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
+from copy import deepcopy
 import re
 
-#os.chdir(r'./Corpora/train')
-basedir=r'./Corpora/train/'
+basedir = r'./Corpora/train/'
 
 #------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -39,29 +39,36 @@ textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo
                  [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
                  [LuisaMarquesSilva, 'Luísa Marques Silva']]
 
-df = pd.DataFrame(columns=['Label','Text'])
+df_original = pd.DataFrame(columns=['Label','Text'])
 
-df = df[0:0]
+df_original = df_original[0:0]
 for lista in textos_labels:
     df_aux = pd.DataFrame({'Label': lista[1],
                             'Text': lista[0]
                             })
 
-    df = df.append(df_aux, ignore_index=True)
+    df_original = df_original.append(df_aux, ignore_index=True)
+
+del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, LuisaMarquesSilva, df_aux, lista, \
+    textos_labels
 
 #------------------------------------------------------
 # PRE - PROCESSING
 #------------------------------------------------------
-def clean(df, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
+def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
     '''
+    df = deepcopy(dataframe)
+
     # lowercase
     df['Text'] = df['Text'].str.lower()
 
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
+        #TODO: replace da regex para não eliminar ', !, ?, - (se o ' estiver entre 2 palavas não remover, remover os outros)
+        #TODO: remover letras sozinhas
 
     for idx, row in df.iterrows():
         # remove tags
@@ -93,22 +100,45 @@ def clean(df, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctu
             df.iloc[idx, 1] = ' '.join(lemma.lemmatize(word)
                                        for word in row[1].split())
 
-
-    # split sentences in words
-    #df['Text'] = df.Text.str.split(' ')
-
     return df
 
 
 ## TESTE stem
-print(df.Text[0])
+print(df_original.Text[0])
 snowball_stemmer = SnowballStemmer('portuguese')
-' '.join(snowball_stemmer.stem(word) for word in df.Text[0].split())
+' '.join(snowball_stemmer.stem(word) for word in df_original.Text[0].split())
 
 ## TESTE lema
-print(df.Text[0])
+print(df_original.Text[0])
 lemma = WordNetLemmatizer()
-' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
+' '.join(lemma.lemmatize(word) for word in df_original.Text[0].split())
 
 
-df_cleaned = clean(df, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
+df_cleaned = clean(df_original, stopwords_bol=True, stemmer_bol=False, lemmatizer_bol=False, punctuation_all=True)
+
+# count the number of words per text
+counts = []
+for idx, row in df_original.iterrows():
+    counts.append(len(row[1].split()))
+
+
+# Split sentences in words
+df_cleaned['String'] = df_cleaned.Text.str.split(' ')
+
+# WORD COUNTER
+def word_counter(df):
+    """
+    Function that receives a list of strings and returns the frequency of each word
+    in the set of all strings.
+    """
+    counter = []
+    for idx, row in df.iterrows():
+        words_in_df = " ".join(row[2]).split()
+
+        # Count all words
+        counter.append(pd.Series(words_in_df).value_counts())
+
+    return counter
+
+counter = word_counter(df_cleaned)
+
