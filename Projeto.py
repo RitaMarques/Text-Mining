@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import nltk
+from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
