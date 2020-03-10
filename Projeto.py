@@ -9,9 +9,9 @@ import re
 
 os.chdir(r'./Corpora/train')
 
+#------------------------------------------------------
 # IMPORT TRAIN FILES
-
-
+#------------------------------------------------------
 def import_folder_files(directory):
     f = []
     for name, lista, files in os.walk(directory):
@@ -19,7 +19,7 @@ def import_folder_files(directory):
         for file in files:
 
             if file.endswith(".txt"):
-                f1 = open(directory + '\\' + file, "r", encoding='utf-8')
+                f1 = open(basedir + directory + '/' + file, "r", encoding='utf-8')
                 f1 = f1.read()
                 f.append(f1)
     return f
@@ -47,9 +47,9 @@ for lista in textos_labels:
 
     df = df.append(df_aux, ignore_index=True)
 
-####################################
+#------------------------------------------------------
 # PRE - PROCESSING
-####################################
+#------------------------------------------------------
 def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
