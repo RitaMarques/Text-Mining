@@ -37,7 +37,7 @@ textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo
                  [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
                  [LuisaMarquesSilva, 'Luísa Marques Silva']]
 
-df = pd.DataFrame(columns=['Text','Label'])
+df = pd.DataFrame(columns=['Label','Text'])
 
 df = df[0:0]
 for lista in textos_labels:
@@ -110,4 +110,4 @@ lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
 
 
-df_cleaned = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
+df_cleaned = clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
