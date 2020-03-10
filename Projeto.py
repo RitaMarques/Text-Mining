@@ -19,7 +19,7 @@ def import_folder_files(directory):
         for file in files:
 
             if file.endswith(".txt"):
-                f1 = open(directory + '\\' + file, "r", encoding='utf-8')
+                f1 = open(basedir + directory + '/' + file, "r", encoding='utf-8')
                 f1 = f1.read()
                 f.append(f1)
     return f
