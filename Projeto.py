@@ -1,9 +1,11 @@
 import pandas as pd
 import os
 import nltk
+from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
 from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
+import re
 
 #os.chdir(r'/Corpora/train')
 os.getcwd()
@@ -61,14 +63,14 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
 
     # create stopwords
     if stopwords == True:
-        stopwords = nltk.corpus.stopwords.words('portuguese')
+        stopwords = stopwords.words('portuguese')
 
         for idx, row in df.iterrows():
             sentence = []
-            for word in row.Text:
+            for word in row.Text.split(' '):
                 if word not in stopwords:
-                    sentence = sentence.append(word)
-            ' '.join(word for word in sentence)
+                    sentence.append(word)
+            df.iloc[idx,1] = ' '.join(word for word in sentence)
 
     # replace \n with a space
     for idx, row in df.iterrows():
@@ -77,7 +79,6 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
-
             df.iloc[idx,1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
 
@@ -109,4 +110,4 @@ lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df.Text[0].split())
 
 
-df = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False)
+df_cleaned = clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True)
