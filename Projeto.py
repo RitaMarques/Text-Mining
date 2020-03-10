@@ -62,7 +62,7 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
 
     # create stopwords
     if stopwords == True:
-        stopwords = nltk.corpus.stopwords.words('portuguese')
+        stopwords = stopwords.words('portuguese')
 
         for idx, row in df.iterrows():
             sentence = []
