@@ -48,9 +48,9 @@ for lista in textos_labels:
     df = df.append(df_aux, ignore_index=True)
 
 ####################################
-#PRE - PROCESSING
+# PRE - PROCESSING
 ####################################
-def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
+def clean(stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
     '''
@@ -59,34 +59,34 @@ def clean(stopwords=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_al
 
     # remove tags
     for idx, row in df.iterrows():
-        df.iloc[idx,1] = BeautifulSoup(row[1]).get_text()
+        df.iloc[idx, 1] = BeautifulSoup(row[1]).get_text()
 
     # create stopwords
-    if stopwords == True:
-        stopwords = stopwords.words('portuguese')
+    if stopwords_bol == True:
+        stop = stopwords.words('portuguese')
 
         for idx, row in df.iterrows():
+            df.iloc[idx, 1] = row[1].replace('\n', ' ')
+
             sentence = []
             for word in row.Text.split(' '):
-                if word not in stopwords:
+                if word not in stop:
                     sentence.append(word)
-            df.iloc[idx,1] = ' '.join(word for word in sentence)
+            df.iloc[idx, 1] = ' '.join(word for word in sentence)
 
     # replace \n with a space
     for idx, row in df.iterrows():
-        df.iloc[idx,1] = row[1].replace('\n',' ')
-
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
-            df.iloc[idx,1] = ' '.join(snowball_stemmer.stem(word)
+            
+            df.iloc[idx, 1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
-
         # Lemmatizer
         elif lemmatizer_bol == True:
             lemma = WordNetLemmatizer()
-            df.iloc[idx,1] = ' '.join(lemma.lemmatize(word)
-                                    for word in row[1].split())
+            df.iloc[idx, 1] = ' '.join(lemma.lemmatize(word)
+                                       for word in row[1].split())
 
     # remove all punctuation
     if punctuation_all == True:
