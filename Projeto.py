@@ -69,26 +69,46 @@ def normalize(s):
            .encode('ascii', 'ignore')\
            .decode("utf-8")
 
-def features
+def feature_eng(texts_column):
+    lista_wordsPsent = []
+
+    for text in texts_column:
+        soma = 0
+        contagem_frases = 0
+
+        for sentence in re.split(r"[\??\!?\.?]+", text):
+            soma += len(sentence.strip().split(' '))
+            contagem_frases += 1
+        lista_wordsPsent.append(round(soma/contagem_frases,2))
+
+    return lista_wordsPsent
+
+def remove_spaces(text_column):
+    '''removes multiple spaces'''
+    text_column = text_column.apply(lambda x: re.sub(r"\s+", " ", x))
+    return text_column
+
 
 def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True):
     ''' 
-    Does lowercase, stopwords
+    Does lowercase, stopwords, creates new features
     '''
     df = deepcopy(dataframe)
 
     # lowercase
     df['Text'] = df['Text'].str.lower()
 
-    # replace ! and ? with token
-    df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
-
     # replace number with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\d+', 'NUMBER', x))
 
     # replace \n with a space
     df['Text'] = df['Text'].apply(lambda x: x.replace('\n', ' '))
-    #df.iloc[idx, 1] = row[1].replace('\n', ' ')
+
+    # removes multiple spaces
+    df['Text'] = remove_spaces(df['Text'])
+
+    # create feature nr médio palavras por frase
+    df['WordsPerSentence'] = feature_eng(df['Text'])
 
     # remove "acentos"
     regexp = re.compile(r'\w\'\w')
@@ -108,12 +128,15 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # re.split(r"\s+", text)                     SPLITTING A STRING WITH MULTIPLE SPACES
     # re.sub(r"\s+[a-zA-Z]\s+", " ", text)       REMOVING A SINGLE CHARACTER
 
+    # replace ! and ? with token
+    df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
+
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
 
     # removes multiple spaces
-    df['Text'] = df['Text'].apply(lambda x: re.sub(r"\s+", " ", x))
+    df['Text'] = remove_spaces(df['Text'])
 
     for idx, row in df.iterrows():
         # remove tags
@@ -145,7 +168,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     return df
 
 df_cleaned = clean(df_original, stemmer_bol=True)
-
+df_cleaned_feat = clean(df_original, stemmer_bol=False)
 
 #----------------
 # Split dataset
@@ -279,16 +302,6 @@ def plot_cm(confusion_matrix : np.array, classnames : list):
 labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos',
           'José Saramago','Luísa Marques Silva']
 plot_cm(conf_matrix,labels)
-
-
-
-
-
-
-
-
-
-
 
 
 #---------------------
