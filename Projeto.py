@@ -6,6 +6,7 @@ from nltk.stem import SnowballStemmer
 from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
 from copy import deepcopy
+import unicodedata
 import re
 
 basedir = r'./Corpora/train/'
@@ -55,6 +56,13 @@ del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, Luis
 #------------------------------------------------------
 # PRE - PROCESSING
 #------------------------------------------------------
+
+def normalize(s):
+    return unicodedata.normalize('NFD', s)\
+           .encode('ascii', 'ignore')\
+           .decode("utf-8")
+
+
 def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
     Does lowercase, stopwords
@@ -63,6 +71,12 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
 
     # lowercase
     df['Text'] = df['Text'].str.lower()
+
+    for idx, row in df.iterrows():
+        sentence = []
+        for word in row.Text.split(' '):
+            sentence.append(normalize(word))
+        df.iloc[idx, 1] = ' '.join(word for word in sentence)
 
     # remove all punctuation
     if punctuation_all == True:
@@ -114,7 +128,7 @@ lemma = WordNetLemmatizer()
 ' '.join(lemma.lemmatize(word) for word in df_original.Text[0].split())
 
 
-df_cleaned = clean(df_original, stopwords_bol=True, stemmer_bol=False, lemmatizer_bol=False, punctuation_all=True)
+df_cleaned = clean(df_original, stemmer_bol=False, lemmatizer_bol=False, punctuation_all=True)
 
 # count the number of words per text
 counts = []
@@ -142,3 +156,6 @@ def word_counter(df):
 
 counter = word_counter(df_cleaned)
 
+
+df_cleaned.iloc[0,1]
+df_original.iloc[0,1]
