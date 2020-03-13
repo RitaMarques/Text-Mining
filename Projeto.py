@@ -10,6 +10,7 @@ from copy import deepcopy
 import unicodedata
 import re
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix
@@ -158,10 +159,13 @@ X_train.shape
 # nr of texts in test
 X_test.shape
 
-#-----------------------
-# Bag of Words - binary
-#-----------------------
+#------------------------------------------------------
+# LANGUAGE MODEL
+#------------------------------------------------------
 
+#-----------
+# Bag of Words - binary
+#-----------
 cv = CountVectorizer(
     max_df=0.9, 
     #max_features=10000, 
@@ -171,35 +175,74 @@ cv = CountVectorizer(
 
 X_train_cv = cv.fit_transform(X_train)
 
-#------
+# we have to use the same vectorizer for the test set, as we used for the train set!!!
+X_test_cv = cv.transform(X_test)
+
+#-----------
+# TF-IDF
+#-----------
+cv = CountVectorizer(
+    max_df=0.9,
+    #max_features=10000,
+    ngram_range=(1,3),
+    binary=False # counts per word
+)
+X_train_cv = cv.fit_transform(X_train)
+X_test_cv = cv.transform(X_test)
+
+feature_names = cv.get_feature_names()
+
+tfidf = TfidfTransformer()
+tfidf.fit(X_train_cv)
+
+tf_idf_vector = tfidf.transform(X_test_cv)
+
+
+def extract_feature_scores(feature_names, document_vector):
+    """
+    Function that creates a dictionary with the TF-IDF score for each feature.
+    :param feature_names: list with all the feature words.
+    :param document_vector: vector containing the extracted features for a specific document
+
+    :return: returns a sorted dictionary "feature":"score".
+    """
+    feature2score = {}
+    for i in range(len(feature_names)):
+        feature2score[feature_names[i]] = document_vector[0][i]
+    return sorted(feature2score.items(), key=lambda kv: kv[1], reverse=True)
+
+extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+
+
+#------------------------------------------------------
+# MACHINE LEARNING ALGORITHMS
+#------------------------------------------------------
+
+#-----------
 # KNN
-#------
+#-----------
 # Clustering the document with KNN classifier
 modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
                                          metric='cosine')
 modelknn.fit(X_train_cv,y_train)
 
-# we have to use the same vectorizer for the test set, as we used for the train set!!!
-X_test_cv = cv.transform(X_test)
-
 predict = modelknn.predict(X_test_cv)
 
+
+#-----------
+# Results
+#-----------
 class1 = classification_report(predict, y_test)
 print (classification_report(predict, y_test))
 
 conf_matrix = confusion_matrix(predict, y_test)
 
 # function to display confusion matrix
-def plot_cm(confusion_matrix : np.array, 
-            classnames : list):
+def plot_cm(confusion_matrix : np.array, classnames : list):
     """
     Function that creates a confusion matrix plot using the Wikipedia convention for the axis. 
     :param confusion_matrix: confusion matrix that will be plotted
-    :param classnames: labels of the classes
-    
-    Returns:
-        - Plot of the Confusion Matrix
-    """
+    :param classnames: labels of the classes"""
     
     confusionmatrix = confusion_matrix
     class_names = classnames             
@@ -233,7 +276,8 @@ def plot_cm(confusion_matrix : np.array,
     return plt.show()
 
 
-labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos','José Saramago','Luísa Marques Silva']
+labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos',
+          'José Saramago','Luísa Marques Silva']
 plot_cm(conf_matrix,labels)
 
 
