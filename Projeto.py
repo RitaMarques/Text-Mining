@@ -98,6 +98,9 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # lowercase
     df['Text'] = df['Text'].str.lower()
 
+    # remove tags
+    df['Text'] = df['Text'].apply(lambda x: BeautifulSoup(x).get_text())
+
     # replace number with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\d+', 'NUMBER', x))
 
@@ -139,8 +142,6 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     df['Text'] = remove_spaces(df['Text'])
 
     for idx, row in df.iterrows():
-        # remove tags
-        df.iloc[idx, 1] = BeautifulSoup(row[1]).get_text()
 
         # remove stopwords
         if stopwords_bol == True:
