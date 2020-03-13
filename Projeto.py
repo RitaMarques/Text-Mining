@@ -56,12 +56,10 @@ del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, Luis
 #------------------------------------------------------
 # PRE - PROCESSING
 #------------------------------------------------------
-
 def normalize(s):
     return unicodedata.normalize('NFD', s)\
            .encode('ascii', 'ignore')\
            .decode("utf-8")
-
 
 def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
     ''' 
@@ -72,24 +70,44 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # lowercase
     df['Text'] = df['Text'].str.lower()
 
+    # replace ! and ? with token
+    df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
+
+    # replace number with token
+    df['Text'] = df['Text'].apply(lambda x: re.sub('\d+', 'NUMBER', x))
+
+    # replace \n with a space
+    df['Text'] = df['Text'].apply(lambda x: x.replace('\n', ' '))
+    #df.iloc[idx, 1] = row[1].replace('\n', ' ')
+
+    # remove "acentos"
+    regexp = re.compile(r'\w\'\w')
     for idx, row in df.iterrows():
         sentence = []
         for word in row.Text.split(' '):
+            if regexp.search(word):
+                # see the accuracy with both cases
+                    # replaces the ' with APOSTROPHE: dAPOSTROPHEangustia
+                #word = re.sub("\'", 'APOSTROPHE', word)
+                    # cuts the ' and adds a feature APOSTROPHE
+                word = re.sub("\'", '', word) # em conjunto com o de baixo
+                word = word + " APOSTROPHE" # caso o de cima aconteça
             sentence.append(normalize(word))
         df.iloc[idx, 1] = ' '.join(word for word in sentence)
+
+    # re.split(r"\s+", text)                     SPLITTING A STRING WITH MULTIPLE SPACES
+    # re.sub(r"\s+[a-zA-Z]\s+", " ", text)       REMOVING A SINGLE CHARACTER
 
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
-        #TODO: replace da regex para não eliminar ', !, ?, - (se o ' estiver entre 2 palavas não remover, remover os outros)
-        #TODO: remover letras sozinhas
+
+    # removes multiple spaces
+    df['Text'] = df['Text'].apply(lambda x: re.sub(r"\s+", " ", x))
 
     for idx, row in df.iterrows():
         # remove tags
         df.iloc[idx, 1] = BeautifulSoup(row[1]).get_text()
-
-        # replace \n with a space
-        df.iloc[idx, 1] = row[1].replace('\n', ' ')
 
         # remove stopwords
         if stopwords_bol == True:
@@ -115,18 +133,6 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
                                        for word in row[1].split())
 
     return df
-
-
-## TESTE stem
-print(df_original.Text[0])
-snowball_stemmer = SnowballStemmer('portuguese')
-' '.join(snowball_stemmer.stem(word) for word in df_original.Text[0].split())
-
-## TESTE lema
-print(df_original.Text[0])
-lemma = WordNetLemmatizer()
-' '.join(lemma.lemmatize(word) for word in df_original.Text[0].split())
-
 
 df_cleaned = clean(df_original, stemmer_bol=False, lemmatizer_bol=False, punctuation_all=True)
 
@@ -156,6 +162,6 @@ def word_counter(df):
 
 counter = word_counter(df_cleaned)
 
-
-df_cleaned.iloc[0,1]
-df_original.iloc[0,1]
+# see the datasets
+df_cleaned.iloc[0, 1]
+df_original.iloc[0, 1]
