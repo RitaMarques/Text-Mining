@@ -69,8 +69,10 @@ def normalize(s):
            .encode('ascii', 'ignore')\
            .decode("utf-8")
 
-def feature_eng(texts_column):
+def words_sentence(texts_column):
+    '''returns a list with the mean words per sentence for each sample'''
     lista_wordsPsent = []
+    lista_sentences_nr = []
 
     for text in texts_column:
         soma = 0
@@ -79,9 +81,17 @@ def feature_eng(texts_column):
         for sentence in re.split(r"[\??\!?\.?]+", text):
             soma += len(sentence.strip().split(' '))
             contagem_frases += 1
+        
+        lista_sentences_nr.append(contagem_frases)
         lista_wordsPsent.append(round(soma/contagem_frases,2))
 
-    return lista_wordsPsent
+    return lista_wordsPsent, lista_sentences_nr
+
+def unique_words(text_column):
+    '''returns a list with the number of unique words per sample'''
+    unique_words = [len(set(text.split(' '))) for text in text_column]
+    return unique_words
+
 
 def remove_spaces(text_column):
     '''removes multiple spaces'''
@@ -111,7 +121,8 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     df['Text'] = remove_spaces(df['Text'])
 
     # create feature nr médio palavras por frase
-    df['WordsPerSentence'] = feature_eng(df['Text'])
+    df['WordsPerSentence'],_ = words_sentence(df['Text'])
+    _,df['Sentences'] = words_sentence(df['Text'])
 
     # remove "acentos"
     regexp = re.compile(r'\w\'\w')
@@ -134,6 +145,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # replace ! and ? with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
 
+    
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
@@ -141,7 +153,15 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # removes multiple spaces
     df['Text'] = remove_spaces(df['Text'])
 
+    # get feature with unique words per sample (includes stopwords)
+    df['UniqueWords'] = unique_words(df['Text'])
+
+    # create feature ExpressionSentences
+    df['ExpressionSentences'] = ''
+
     for idx, row in df.iterrows():
+        # populate ExpressionSentences feature
+        df.loc[idx,'ExpressionSentences'] = round(row.Text.split(' ').count('EXPRESSION')/row.Sentences,2)
 
         # remove stopwords
         if stopwords_bol == True:
