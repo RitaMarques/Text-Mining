@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import nltk
 from nltk.corpus import stopwords
@@ -8,6 +9,12 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
 
 basedir = r'./Corpora/train/'
 
@@ -61,7 +68,9 @@ def normalize(s):
            .encode('ascii', 'ignore')\
            .decode("utf-8")
 
-def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=False):
+def features
+
+def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True):
     ''' 
     Does lowercase, stopwords
     '''
@@ -134,7 +143,113 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
 
     return df
 
-df_cleaned = clean(df_original, stemmer_bol=False, lemmatizer_bol=False, punctuation_all=True)
+df_cleaned = clean(df_original, stemmer_bol=True)
+
+
+#----------------
+# Split dataset
+#----------------
+
+X_train, X_test, y_train, y_test = train_test_split(
+                df_cleaned['Text'], df_cleaned['Label'], test_size=0.20, stratify=df_cleaned['Label'], shuffle=True, random_state=1)
+
+# nr of texts in train
+X_train.shape
+# nr of texts in test
+X_test.shape
+
+#-----------------------
+# Bag of Words - binary
+#-----------------------
+
+cv = CountVectorizer(
+    max_df=0.9, 
+    #max_features=10000, 
+    ngram_range=(1,3),
+    binary=True # only 0 and 1 for each word
+)
+
+X_train_cv = cv.fit_transform(X_train)
+
+#------
+# KNN
+#------
+# Clustering the document with KNN classifier
+modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
+                                         metric='cosine')
+modelknn.fit(X_train_cv,y_train)
+
+# we have to use the same vectorizer for the test set, as we used for the train set!!!
+X_test_cv = cv.transform(X_test)
+
+predict = modelknn.predict(X_test_cv)
+
+class1 = classification_report(predict, y_test)
+print (classification_report(predict, y_test))
+
+conf_matrix = confusion_matrix(predict, y_test)
+
+# function to display confusion matrix
+def plot_cm(confusion_matrix : np.array, 
+            classnames : list):
+    """
+    Function that creates a confusion matrix plot using the Wikipedia convention for the axis. 
+    :param confusion_matrix: confusion matrix that will be plotted
+    :param classnames: labels of the classes
+    
+    Returns:
+        - Plot of the Confusion Matrix
+    """
+    
+    confusionmatrix = confusion_matrix
+    class_names = classnames             
+
+    fig, ax = plt.subplots()
+    im = plt.imshow(confusionmatrix, cmap=plt.cm.cividis)
+    plt.colorbar()
+
+    # We want to show all ticks...
+    ax.set_xticks(np.arange(len(class_names)))
+    ax.set_yticks(np.arange(len(class_names)))
+    # ... and label them with the respective list entries
+    ax.set_xticklabels(class_names)
+    ax.set_yticklabels(class_names)
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    for i in range(len(class_names)):
+        for j in range(len(class_names)):
+            text = ax.text(j, i, confusionmatrix[i, j],
+                           ha="center", va="center", color="w")
+
+    ax.set_title("Confusion Matrix")
+    plt.xlabel('Targets')
+    plt.ylabel('Predictions')
+    plt.ylim(top=len(class_names)-0.5)  # adjust the top leaving bottom unchanged
+    plt.ylim(bottom=-0.5)  # adjust the bottom leaving top unchanged
+    return plt.show()
+
+
+labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos','José Saramago','Luísa Marques Silva']
+plot_cm(conf_matrix,labels)
+
+
+
+
+
+
+
+
+
+
+
+
+#---------------------
+# Random things
+#---------------------
 
 # count the number of words per text
 counts = []
