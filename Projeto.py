@@ -19,9 +19,9 @@ import matplotlib.pyplot as plt
 
 basedir = r'./Corpora/train/'
 
-#------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
-#------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------
 def import_folder_files(directory):
     f = []
     fulldir = basedir + directory
@@ -59,11 +59,11 @@ for lista in textos_labels:
     df_original = df_original.append(df_aux, ignore_index=True)
 
 del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, LuisaMarquesSilva, df_aux, lista, \
-    textos_labels
+    textos_labels, basedir
 
-#------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------
 # PRE - PROCESSING
-#------------------------------------------------------
+#----------------------------------------------------------------------------------------------------------------
 def normalize(s):
     return unicodedata.normalize('NFD', s)\
            .encode('ascii', 'ignore')\
@@ -99,7 +99,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     df['Text'] = df['Text'].str.lower()
 
     # remove tags
-    df['Text'] = df['Text'].apply(lambda x: BeautifulSoup(x).get_text())
+    df['Text'] = df['Text'].apply(lambda x: BeautifulSoup(x, "html.parser").get_text())
 
     # replace number with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\d+', 'NUMBER', x))
@@ -174,7 +174,6 @@ df_cleaned_feat = clean(df_original, stemmer_bol=False)
 #----------------
 # Split dataset
 #----------------
-
 X_train, X_test, y_train, y_test = train_test_split(
                 df_cleaned['Text'], df_cleaned['Label'], test_size=0.20, stratify=df_cleaned['Label'], shuffle=True, random_state=1)
 
@@ -183,13 +182,13 @@ X_train.shape
 # nr of texts in test
 X_test.shape
 
-#------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------
 # LANGUAGE MODEL
-#------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------
 
-#-----------
+#------------------------------------
 # Bag of Words - binary
-#-----------
+#------------------------------------
 cv = CountVectorizer(
     max_df=0.9, 
     #max_features=10000, 
@@ -202,9 +201,9 @@ X_train_cv = cv.fit_transform(X_train)
 # we have to use the same vectorizer for the test set, as we used for the train set!!!
 X_test_cv = cv.transform(X_test)
 
-#-----------
+#------------------------
 # TF-IDF
-#-----------
+#------------------------
 cv = CountVectorizer(
     max_df=0.9,
     #max_features=10000,
@@ -237,14 +236,23 @@ def extract_feature_scores(feature_names, document_vector):
 
 extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 
+#--------------------------
+# POS Tagging
+#--------------------------
+#nltk.download('mac_morpho')
+nltk.corpus.mac_morpho.tagged_words()
+#nltk.download('punkt')
+tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
 
-#------------------------------------------------------
+
+
+#------------------------------------------------------------------------------------------------------------
 # MACHINE LEARNING ALGORITHMS
-#------------------------------------------------------
+#------------------------------------------------------------------------------------------------------------
 
-#-----------
+#--------------------------
 # KNN
-#-----------
+#--------------------------
 # Clustering the document with KNN classifier
 modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
                                          metric='cosine')
@@ -253,9 +261,9 @@ modelknn.fit(X_train_cv,y_train)
 predict = modelknn.predict(X_test_cv)
 
 
-#-----------
+#--------------------------
 # Results
-#-----------
+#--------------------------
 class1 = classification_report(predict, y_test)
 print (classification_report(predict, y_test))
 
@@ -305,9 +313,9 @@ labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José R
 plot_cm(conf_matrix,labels)
 
 
-#---------------------
+#--------------------------
 # Random things
-#---------------------
+#--------------------------
 
 # count the number of words per text
 counts = []
