@@ -9,8 +9,10 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
+from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix
@@ -103,7 +105,7 @@ def words_per_text(text_column):
     total_words = [len(text.split(' ')) for text in text_column]
     return total_words
 
-def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, lemmatizer_bol=False, punctuation_all=True):
+def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, punctuation_all=True):
     ''' 
     Does lowercase, stopwords, creates new features
     '''
@@ -177,7 +179,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
 
 
     # create feature ExpressionSentences (nr of expressions per sentence)
-    df['ExpressionSentences'] = ''
+    df['ExpressionSentences'] = 0
 
     for idx, row in df.iterrows():
         # populate ExpressionSentences feature
@@ -189,10 +191,11 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
 
             sentence = []
             for word in row.Text.split(' '):
-                if word not in stop:
-                    sentence.append(word)
-            df.iloc[idx, 1] = ' '.join(word for word in sentence)
-
+                if word.strip() not in stop:
+                    sentence.append(word.strip())
+            df.iloc[idx, 1] = ' '.join(element for element in sentence)
+    
+    for idx, row in df.iterrows():
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
@@ -207,19 +210,21 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
     
     return df
 
-df_cleaned = clean(df_original, stemmer_bol=True)
+df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
 
 #----------------
 # Split dataset
 #----------------
-X_train, X_test, y_train, y_test = train_test_split(
+X_train, X_val, y_train, y_val = train_test_split(
                 df_cleaned['Text'], df_cleaned['Label'], test_size=0.20, stratify=df_cleaned['Label'], shuffle=True, random_state=1)
 
 # nr of texts in train
 X_train.shape
 # nr of texts in test
-X_test.shape
+X_val.shape
 
+train_idx = list(X_train.index)
+val_idx = list(X_val.index)
 #------------------------------------------------------------------------------------------------------------
 # LANGUAGE MODEL
 #------------------------------------------------------------------------------------------------------------
@@ -237,15 +242,44 @@ cv = CountVectorizer(
 X_train_cv = cv.fit_transform(X_train)
 
 # we have to use the same vectorizer for the test set, as we used for the train set!!!
-X_test_cv = cv.transform(X_test)
+X_val_cv = cv.transform(X_val)
 
 
+#------------------------------------------
+# ADD FEATURES (run this section if wanted)
+#------------------------------------------
+# TRAIN
+df_cleaned_train = df_cleaned.iloc[train_idx,:]
 vocab = cv.get_feature_names()
 X1 = pd.DataFrame(X_train_cv.toarray(), columns = vocab)
-X1['Numeric Column'] = dataset['Numeric Column']
 
+X1['Sentences_norm'] = list(df_cleaned_train['Sentences_norm'])
+X1['Unique_words'] = list(df_cleaned_train['UniqueWords'])
+X1['Expression_Sentences'] = list(df_cleaned_train['ExpressionSentences'])
+
+aux = df_cleaned_train['WordsPerSentence'].values.reshape(-1, 1) #returns a numpy array
+min_max_scaler = MinMaxScaler()
+x1_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
+X1['Words_Per_Sentence'] = [round(x,3) for x in x1_scaled]
 
 X_sparse = sparse.csr_matrix(X1.values)
+
+# VALIDATION
+df_cleaned_val = df_cleaned.iloc[val_idx,:]
+vocab = cv.get_feature_names()
+X2 = pd.DataFrame(X_val_cv.toarray(), columns = vocab)
+
+X2['Sentences_norm'] = list(df_cleaned_val['Sentences_norm'])
+X2['Unique_words'] = list(df_cleaned_val['UniqueWords'])
+X2['Expression_Sentences'] = list(df_cleaned_val['ExpressionSentences'])
+
+aux = df_cleaned_val['WordsPerSentence'].values.reshape(-1, 1) #returns a numpy array
+min_max_scaler = MinMaxScaler()
+x2_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
+X2['Words_Per_Sentence'] = [round(x,3) for x in x2_scaled]
+
+X_sparse = sparse.csr_matrix(X2.values)
+
 
 #------------------------
 # TF-IDF
@@ -257,14 +291,14 @@ cv = CountVectorizer(
     binary=False # counts per word
 )
 X_train_cv = cv.fit_transform(X_train)
-X_test_cv = cv.transform(X_test)
+X_val_cv = cv.transform(X_val)
 
 feature_names = cv.get_feature_names()
 
 tfidf = TfidfTransformer()
-tfidf.fit(X_train_cv)
 
-tf_idf_vector = tfidf.transform(X_test_cv)
+X_train_cv = tfidf.fit_transform(X_train_cv)
+X_val_cv = tfidf.transform(X_val_cv)
 
 
 def extract_feature_scores(feature_names, document_vector):
@@ -304,16 +338,16 @@ modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='br
                                          metric='cosine')
 modelknn.fit(X_train_cv,y_train)
 
-predict = modelknn.predict(X_test_cv)
+predict = modelknn.predict(X_val_cv)
 
 
 #--------------------------
 # Results
 #--------------------------
-class1 = classification_report(predict, y_test)
-print (classification_report(predict, y_test))
+class0 = classification_report(predict, y_val)
+print (class1)
 
-conf_matrix = confusion_matrix(predict, y_test)
+conf_matrix0 = confusion_matrix(predict, y_val)
 
 # function to display confusion matrix
 def plot_cm(confusion_matrix : np.array, classnames : list):
@@ -356,7 +390,36 @@ def plot_cm(confusion_matrix : np.array, classnames : list):
 
 labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos',
           'José Saramago','Luísa Marques Silva']
-plot_cm(conf_matrix,labels)
+plot_cm(conf_matrix0,labels)
+
+
+
+
+
+
+#-------------
+# TEST FILES
+#-------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #--------------------------
