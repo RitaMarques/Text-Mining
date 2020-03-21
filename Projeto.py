@@ -30,7 +30,6 @@ def import_folder_files(directory):
     for name, lista, files in os.walk(fulldir):
 
         for file in files:
-
             if file.endswith(".txt"):
                 f1 = open(fulldir + '\\' + file, "r", encoding='utf-8')
                 f1 = f1.read()
@@ -401,7 +400,7 @@ plot_cm(conf_matrix0,labels)
 # TEST FILES
 #-------------
 
-basedir = r'./Corpora/test-IMPORT/500Palavras'
+basedir = r'./Corpora/test-IMPORT/500Palavras/'
 
 AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
 Camilo = import_folder_files('CamiloCasteloBranco')
@@ -427,7 +426,7 @@ for lista in textos_labels:
 
 
 
-basedir = r'./Corpora/test-IMPORT/1000Palavras'
+basedir = r'./Corpora/test-IMPORT/1000Palavras/'
 
 AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
 Camilo = import_folder_files('CamiloCasteloBranco')
