@@ -82,7 +82,7 @@ def words_sentence(texts_column):
         for sentence in re.split(r"[\??\!?\.?]+", text):
             soma += len(sentence.strip().split(' '))
             contagem_frases += 1
-        
+
         lista_sentences_nr.append(contagem_frases)
         lista_wordsPsent.append(round(soma/contagem_frases,2))
 
@@ -92,7 +92,6 @@ def unique_words(text_column):
     '''returns a list with the number of unique words per sample'''
     unique_words = [len(set(text.split(' '))) for text in text_column]
     return unique_words
-
 
 def remove_spaces(text_column):
     '''removes multiple spaces'''
@@ -104,8 +103,8 @@ def words_per_text(text_column):
     total_words = [len(text.split(' ')) for text in text_column]
     return total_words
 
-def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, punctuation_all=True):
-    ''' 
+def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False, punctuation_all=True):
+    '''
     Does lowercase, stopwords, creates new features
     '''
     df = deepcopy(dataframe)
@@ -131,7 +130,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
 
     # create feature avg number of words per sentence
     df['WordsPerSentence'],_ = words_sentence(df['Text'])
-    
+
     # create feature number of sentences per sample
     _,df['Sentences'] = words_sentence(df['Text'])
 
@@ -161,7 +160,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
     # replace ! and ? with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
 
-    
+
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
@@ -183,7 +182,7 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
     for idx, row in df.iterrows():
         # populate ExpressionSentences feature
         df.loc[idx,'ExpressionSentences'] = round(row.Text.split(' ').count('EXPRESSION')/row.Sentences,2)
-        
+
         # remove stopwords
         if stopwords_bol == True:
             stop = stopwords.words('portuguese') # create stopwords
@@ -193,12 +192,12 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
                 if word.strip() not in stop:
                     sentence.append(word.strip())
             df.iloc[idx, 1] = ' '.join(element for element in sentence)
-    
+
     for idx, row in df.iterrows():
         # Stemmer
         if stemmer_bol == True:
             snowball_stemmer = SnowballStemmer('portuguese')
-            
+
             df.iloc[idx, 1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
 
@@ -206,10 +205,10 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, 
         df.drop(columns=['Sentences'], inplace=True)
 
     df.drop(columns=['TotalWords'], inplace=True)
-    
+
     return df
 
-df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
+df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=False)
 
 #----------------
 # Split dataset
@@ -222,8 +221,6 @@ X_train.shape
 # nr of texts in test
 X_val.shape
 
-train_idx = list(X_train.index)
-val_idx = list(X_val.index)
 #------------------------------------------------------------------------------------------------------------
 # LANGUAGE MODEL
 #------------------------------------------------------------------------------------------------------------
@@ -232,8 +229,8 @@ val_idx = list(X_val.index)
 # Bag of Words - binary
 #------------------------------------
 cv = CountVectorizer(
-    max_df=0.9, 
-    #max_features=10000, 
+    max_df=0.9,
+    #max_features=10000,
     ngram_range=(1,3),
     binary=True # only 0 and 1 for each word
 )
@@ -243,14 +240,61 @@ X_train_cv = cv.fit_transform(X_train)
 # we have to use the same vectorizer for the test set, as we used for the train set!!!
 X_val_cv = cv.transform(X_val)
 
+#------------------------
+# TF-IDF
+#------------------------
+cv = CountVectorizer(
+    max_df=0.9,
+    #max_features=10000,
+    ngram_range=(1,3),
+    binary=False # counts per word
+)
+X_train_cv = cv.fit_transform(X_train)
+X_val_cv = cv.transform(X_val)
+
+feature_names = cv.get_feature_names()
+
+tfidf = TfidfTransformer()
+
+tf_idf_vector = tfidf.transform(X_val_cv)
+X_train_cv = tfidf.fit_transform(X_train_cv)
+X_val_cv = tfidf.transform(X_val_cv)
+
+# see which features have higher weights
+def extract_feature_scores(feature_names, document_vector):
+    """
+    Function that creates a dictionary with the TF-IDF score for each feature.
+    :param feature_names: list with all the feature words.
+    :param document_vector: vector containing the extracted features for a specific document
+
+    :return: returns a sorted dictionary "feature":"score".
+    """
+    feature2score = {}
+    for i in range(len(feature_names)):
+        feature2score[feature_names[i]] = document_vector[0][i]
+    return sorted(feature2score.items(), key=lambda kv: kv[1], reverse=True)
+
+extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+
+#--------------------------
+# POS Tagging
+#--------------------------
+#nltk.download('mac_morpho')
+#nltk.corpus.mac_morpho.tagged_words()
+#nltk.download('punkt')
+#tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
+
 
 #------------------------------------------
 # ADD FEATURES (run this section if wanted)
 #------------------------------------------
+train_idx = list(X_train.index)
+val_idx = list(X_val.index)
+
 # TRAIN
-df_cleaned_train = df_cleaned.iloc[train_idx,:]
+df_cleaned_train = df_cleaned.iloc[train_idx, :]
 vocab = cv.get_feature_names()
-X1 = pd.DataFrame(X_train_cv.toarray(), columns = vocab)
+X1 = pd.DataFrame(X_train_cv.toarray(), columns=vocab)
 
 X1['Sentences_norm'] = list(df_cleaned_train['Sentences_norm'])
 X1['Unique_words'] = list(df_cleaned_train['UniqueWords'])
@@ -280,51 +324,6 @@ X2['Words_Per_Sentence'] = [round(x,3) for x in x2_scaled]
 X_sparse = sparse.csr_matrix(X2.values)
 
 
-#------------------------
-# TF-IDF
-#------------------------
-cv = CountVectorizer(
-    max_df=0.9,
-    #max_features=10000,
-    ngram_range=(1,3),
-    binary=False # counts per word
-)
-X_train_cv = cv.fit_transform(X_train)
-X_val_cv = cv.transform(X_val)
-
-feature_names = cv.get_feature_names()
-
-tfidf = TfidfTransformer()
-
-X_train_cv = tfidf.fit_transform(X_train_cv)
-X_val_cv = tfidf.transform(X_val_cv)
-
-
-def extract_feature_scores(feature_names, document_vector):
-    """
-    Function that creates a dictionary with the TF-IDF score for each feature.
-    :param feature_names: list with all the feature words.
-    :param document_vector: vector containing the extracted features for a specific document
-
-    :return: returns a sorted dictionary "feature":"score".
-    """
-    feature2score = {}
-    for i in range(len(feature_names)):
-        feature2score[feature_names[i]] = document_vector[0][i]
-    return sorted(feature2score.items(), key=lambda kv: kv[1], reverse=True)
-
-extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
-
-#--------------------------
-# POS Tagging
-#--------------------------
-#nltk.download('mac_morpho')
-#nltk.corpus.mac_morpho.tagged_words()
-#nltk.download('punkt')
-#tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
-
-
-
 #------------------------------------------------------------------------------------------------------------
 # MACHINE LEARNING ALGORITHMS
 #------------------------------------------------------------------------------------------------------------
@@ -335,7 +334,7 @@ extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 # Clustering the document with KNN classifier
 modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
                                          metric='cosine')
-modelknn.fit(X_train_cv,y_train)
+modelknn.fit(X_train_cv, y_train)
 
 predict = modelknn.predict(X_val_cv)
 
@@ -344,7 +343,7 @@ predict = modelknn.predict(X_val_cv)
 # Results
 #--------------------------
 class0 = classification_report(predict, y_val)
-print (class1)
+print(class0)
 
 conf_matrix0 = confusion_matrix(predict, y_val)
 
@@ -389,17 +388,30 @@ def plot_cm(confusion_matrix : np.array, classnames : list):
 
 labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos',
           'José Saramago','Luísa Marques Silva']
-plot_cm(conf_matrix0,labels)
+plot_cm(conf_matrix0, labels)
 
 
-
-
-
-
-#-------------
+#------------------------------------------------------------------------------------------------------------
 # TEST FILES
-#-------------
+#------------------------------------------------------------------------------------------------------------
+def test(testset):
+    test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
+    X_test_cv = cv.transform(test_cleaned['Text'])
+    test_predict = modelknn.predict(X_test_cv)
+    y_test = test_cleaned['Label']
+
+    class_test = classification_report(test_predict, y_test)
+    print(class_test)
+
+    labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
+              'José Saramago', 'Luísa Marques Silva']
+
+    conf_matrix_test = confusion_matrix(test_predict, y_test)
+    plot_cm(conf_matrix_test, labels)
+
+
+# 500 WORDS
 basedir = r'./Corpora/test-IMPORT/500Palavras/'
 
 AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
@@ -424,8 +436,27 @@ for lista in textos_labels:
 
     df_test_500 = df_test_500.append(df_aux, ignore_index=True)
 
+del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, LuisaMarquesSilva, df_aux, lista, \
+    textos_labels, basedir
+
+test(df_test_500)
+
+test_500_cleaned = clean(df_test_500, stopwords_bol=False, stemmer_bol=False)
+
+X500_test_cv = cv.transform(test_500_cleaned['Text'])
+predict2 = modelknn.predict(X500_test_cv)
+print(predict2)
+print(test_500_cleaned['Label'])
+y_test = test_500_cleaned['Label']
+
+class_test500 = classification_report(predict2, y_test)
+print(class_test500)
+
+conf_matrix_test500 = confusion_matrix(predict2, y_test)
+plot_cm(conf_matrix_test500, labels)
 
 
+# 1000 WORDS
 basedir = r'./Corpora/test-IMPORT/1000Palavras/'
 
 AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
@@ -447,51 +478,18 @@ for lista in textos_labels:
     df_aux = pd.DataFrame({'Label': lista[1],
                             'Text': lista[0]
                             })
+    df_test_1000 = df_test_1000.append(df_aux, ignore_index=True)
 
+test_1000_cleaned = clean(df_test_1000, stopwords_bol=False, stemmer_bol=False)
 
+X1000_test_cv = cv.transform(test_1000_cleaned['Text'])
+predict3 = modelknn.predict(X1000_test_cv)
+y_test1000 = test_1000_cleaned['Label']
 
+class_test1000 = classification_report(predict3, y_test1000)
+print(class_test1000)
 
+conf_matrix_test1000 = confusion_matrix(predict3, y_test1000)
+plot_cm(conf_matrix_test1000, labels)
 
-
-
-
-
-
-
-
-
-
-
-#--------------------------
-# Random things
-#--------------------------
-
-# count the number of words per text
-counts = []
-for idx, row in df_original.iterrows():
-    counts.append(len(row[1].split()))
-
-
-# Split sentences in words
-df_cleaned['String'] = df_cleaned.Text.str.split(' ')
-
-# WORD COUNTER
-def word_counter(df):
-    """
-    Function that receives a list of strings and returns the frequency of each word
-    in the set of all strings.
-    """
-    counter = []
-    for idx, row in df.iterrows():
-        words_in_df = " ".join(row[2]).split()
-
-        # Count all words
-        counter.append(pd.Series(words_in_df).value_counts())
-
-    return counter
-
-counter = word_counter(df_cleaned)
-
-# see the datasets
-df_cleaned.iloc[0, 1]
-df_original.iloc[0, 1]
+def test(df, )
