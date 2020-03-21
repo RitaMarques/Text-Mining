@@ -70,7 +70,7 @@ def normalize(s):
            .decode("utf-8")
 
 def words_sentence(texts_column):
-    '''returns a list with the mean words per sentence for each sample'''
+    '''returns a list with the averge number of words per sentence for each sample'''
     lista_wordsPsent = []
     lista_sentences_nr = []
 
@@ -98,8 +98,12 @@ def remove_spaces(text_column):
     text_column = text_column.apply(lambda x: re.sub(r"\s+", " ", x))
     return text_column
 
+def words_per_text(text_column):
+    '''returns a list with the total nr of words per sample'''
+    total_words = [len(text.split(' ')) for text in text_column]
+    return total_words
 
-def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False, punctuation_all=True):
+def clean(dataframe, stopwords_bol=True, stemmer_bol=True, sampled_texts=False, lemmatizer_bol=False, punctuation_all=True):
     ''' 
     Does lowercase, stopwords, creates new features
     '''
@@ -120,9 +124,20 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # removes multiple spaces
     df['Text'] = remove_spaces(df['Text'])
 
-    # create feature nr médio palavras por frase
+    # if the texts don't have all the same length create feature with the total number of words per text
+    if sampled_texts == False:
+        df['TotalWords'] = words_per_text(df['Text'])
+
+    # create feature avg number of words per sentence
     df['WordsPerSentence'],_ = words_sentence(df['Text'])
+    
+    # create feature number of sentences per sample
     _,df['Sentences'] = words_sentence(df['Text'])
+
+    if sampled_texts == False:
+        # create feature number of sentences per sample divided by the total words
+        _,aux = words_sentence(df['Text'])
+        df['Sentences_norm'] = [round(x/y,2) for x,y in zip(aux,df['TotalWords'])]
 
     # remove "acentos"
     regexp = re.compile(r'\w\'\w')
@@ -153,16 +168,21 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
     # removes multiple spaces
     df['Text'] = remove_spaces(df['Text'])
 
-    # get feature with unique words per sample (includes stopwords)
-    df['UniqueWords'] = unique_words(df['Text'])
+    if sampled_texts == True:
+        # get feature with unique words per sample (includes stopwords)
+        df['UniqueWords'] = unique_words(df['Text'])
+    else:
+        # get feature with unique words per sample (includes stopwords) divided by total words per text
+        df['UniqueWords'] = [round(x/y,2) for x,y in zip(unique_words(df['Text']),words_per_text(df['Text']))]
 
-    # create feature ExpressionSentences
+
+    # create feature ExpressionSentences (nr of expressions per sentence)
     df['ExpressionSentences'] = ''
 
     for idx, row in df.iterrows():
         # populate ExpressionSentences feature
         df.loc[idx,'ExpressionSentences'] = round(row.Text.split(' ').count('EXPRESSION')/row.Sentences,2)
-
+        
         # remove stopwords
         if stopwords_bol == True:
             stop = stopwords.words('portuguese') # create stopwords
@@ -180,16 +200,14 @@ def clean(dataframe, stopwords_bol=True, stemmer_bol=True, lemmatizer_bol=False,
             df.iloc[idx, 1] = ' '.join(snowball_stemmer.stem(word)
                                     for word in row[1].split())
 
-        # Lemmatizer
-        elif lemmatizer_bol == True:
-            lemma = WordNetLemmatizer()
-            df.iloc[idx, 1] = ' '.join(lemma.lemmatize(word)
-                                       for word in row[1].split())
+    if sampled_texts == False:
+        df.drop(columns=['Sentences'], inplace=True)
 
+    df.drop(columns=['TotalWords'], inplace=True)
+    
     return df
 
 df_cleaned = clean(df_original, stemmer_bol=True)
-df_cleaned_feat = clean(df_original, stemmer_bol=False)
 
 #----------------
 # Split dataset
@@ -220,6 +238,14 @@ X_train_cv = cv.fit_transform(X_train)
 
 # we have to use the same vectorizer for the test set, as we used for the train set!!!
 X_test_cv = cv.transform(X_test)
+
+
+vocab = cv.get_feature_names()
+X1 = pd.DataFrame(X_train_cv.toarray(), columns = vocab)
+X1['Numeric Column'] = dataset['Numeric Column']
+
+
+X_sparse = sparse.csr_matrix(X1.values)
 
 #------------------------
 # TF-IDF
@@ -260,9 +286,9 @@ extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 # POS Tagging
 #--------------------------
 #nltk.download('mac_morpho')
-nltk.corpus.mac_morpho.tagged_words()
+#nltk.corpus.mac_morpho.tagged_words()
 #nltk.download('punkt')
-tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
+#tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
 
 
 
