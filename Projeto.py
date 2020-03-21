@@ -401,12 +401,53 @@ plot_cm(conf_matrix0,labels)
 # TEST FILES
 #-------------
 
+basedir = r'./Corpora/test-IMPORT/500Palavras'
+
+AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
+Camilo = import_folder_files('CamiloCasteloBranco')
+EcaQueiros = import_folder_files('EcaDeQueiros')
+JoseRodriguesSantos = import_folder_files('JoseRodriguesSantos')
+JoseSaramago = import_folder_files('JoseSaramago')
+LuisaMarquesSilva = import_folder_files('LuisaMarquesSilva')
+
+textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
+                 [EcaQueiros, 'Eça de Queiros'],
+                 [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
+                 [LuisaMarquesSilva, 'Luísa Marques Silva']]
+
+df_test_500 = pd.DataFrame(columns=['Label','Text'])
+
+df_test_500 = df_test_500[0:0]
+for lista in textos_labels:
+    df_aux = pd.DataFrame({'Label': lista[1],
+                            'Text': lista[0]
+                            })
+
+    df_test_500 = df_test_500.append(df_aux, ignore_index=True)
 
 
 
+basedir = r'./Corpora/test-IMPORT/1000Palavras'
 
+AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
+Camilo = import_folder_files('CamiloCasteloBranco')
+EcaQueiros = import_folder_files('EcaDeQueiros')
+JoseRodriguesSantos = import_folder_files('JoseRodriguesSantos')
+JoseSaramago = import_folder_files('JoseSaramago')
+LuisaMarquesSilva = import_folder_files('LuisaMarquesSilva')
 
+textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
+                 [EcaQueiros, 'Eça de Queiros'],
+                 [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
+                 [LuisaMarquesSilva, 'Luísa Marques Silva']]
 
+df_test_1000 = pd.DataFrame(columns=['Label','Text'])
+
+df_test_1000 = df_test_1000[0:0]
+for lista in textos_labels:
+    df_aux = pd.DataFrame({'Label': lista[1],
+                            'Text': lista[0]
+                            })
 
 
 
