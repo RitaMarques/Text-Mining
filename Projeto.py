@@ -19,12 +19,10 @@ from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 
-basedir = r'./Corpora/train/'
-
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
 #----------------------------------------------------------------------------------------------------------------
-def import_folder_files(directory):
+def import_folder_files(basedir, directory):
     f = []
     fulldir = basedir + directory
     for name, lista, files in os.walk(fulldir):
@@ -36,31 +34,32 @@ def import_folder_files(directory):
                 f.append(f1)
     return f
 
+def get_dataframe(basedir):
+    '''Function that creates the dataframe with the respective Label and Text extracted from the directories'''
+    AlmadaNegreiros = import_folder_files(basedir, 'AlmadaNegreiros')
+    Camilo = import_folder_files(basedir, 'CamiloCasteloBranco')
+    EcaQueiros = import_folder_files(basedir, 'EcaDeQueiros')
+    JoseRodriguesSantos = import_folder_files(basedir, 'JoseRodriguesSantos')
+    JoseSaramago = import_folder_files(basedir, 'JoseSaramago')
+    LuisaMarquesSilva = import_folder_files(basedir, 'LuisaMarquesSilva')
 
-AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
-Camilo = import_folder_files('CamiloCasteloBranco')
-EcaQueiros = import_folder_files('EcaDeQueiros')
-JoseRodriguesSantos = import_folder_files('JoseRodriguesSantos')
-JoseSaramago = import_folder_files('JoseSaramago')
-LuisaMarquesSilva = import_folder_files('LuisaMarquesSilva')
+    textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
+                     [EcaQueiros, 'Eça de Queiros'],
+                     [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
+                     [LuisaMarquesSilva, 'Luísa Marques Silva']]
 
-textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
-                 [EcaQueiros, 'Eça de Queiros'],
-                 [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
-                 [LuisaMarquesSilva, 'Luísa Marques Silva']]
+    df = pd.DataFrame(columns=['Label', 'Text'])
 
-df_original = pd.DataFrame(columns=['Label','Text'])
+    df = df[0:0]
+    for lista in textos_labels:
+        df_aux = pd.DataFrame({'Label': lista[1],
+                                'Text': lista[0]
+                                })
 
-df_original = df_original[0:0]
-for lista in textos_labels:
-    df_aux = pd.DataFrame({'Label': lista[1],
-                            'Text': lista[0]
-                            })
+        df = df.append(df_aux, ignore_index=True)
 
-    df_original = df_original.append(df_aux, ignore_index=True)
+    return df
 
-del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, LuisaMarquesSilva, df_aux, lista, \
-    textos_labels, basedir
 
 #----------------------------------------------------------------------------------------------------------------
 # PRE - PROCESSING
@@ -208,59 +207,22 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 
     return df
 
-df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=False)
 
-#----------------
+#----------------------------------------------------------------------------------------------------------------
 # Split dataset
-#----------------
-X_train, X_val, y_train, y_val = train_test_split(
-                df_cleaned['Text'], df_cleaned['Label'], test_size=0.20, stratify=df_cleaned['Label'], shuffle=True, random_state=1)
+#----------------------------------------------------------------------------------------------------------------
+def split(df, test_size=0.2):
+    '''The dataframe has at least 2 columns named Text and Label'''
+    X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
+                                                      stratify=df['Label'], shuffle=True, random_state=1)
 
-# nr of texts in train
-X_train.shape
-# nr of texts in test
-X_val.shape
+    return X_train, X_val, y_train, y_val
+
 
 #------------------------------------------------------------------------------------------------------------
 # LANGUAGE MODEL
 #------------------------------------------------------------------------------------------------------------
-
-#------------------------------------
-# Bag of Words - binary
-#------------------------------------
-cv = CountVectorizer(
-    max_df=0.9,
-    #max_features=10000,
-    ngram_range=(1,3),
-    binary=True # only 0 and 1 for each word
-)
-
-X_train_cv = cv.fit_transform(X_train)
-
-# we have to use the same vectorizer for the test set, as we used for the train set!!!
-X_val_cv = cv.transform(X_val)
-
-#------------------------
-# TF-IDF
-#------------------------
-cv = CountVectorizer(
-    max_df=0.9,
-    #max_features=10000,
-    ngram_range=(1,3),
-    binary=False # counts per word
-)
-X_train_cv = cv.fit_transform(X_train)
-X_val_cv = cv.transform(X_val)
-
-feature_names = cv.get_feature_names()
-
-tfidf = TfidfTransformer()
-
-tf_idf_vector = tfidf.transform(X_val_cv)
-X_train_cv = tfidf.fit_transform(X_train_cv)
-X_val_cv = tfidf.transform(X_val_cv)
-
-# see which features have higher weights
+# See which features have higher weights for TF-IDF
 def extract_feature_scores(feature_names, document_vector):
     """
     Function that creates a dictionary with the TF-IDF score for each feature.
@@ -274,88 +236,100 @@ def extract_feature_scores(feature_names, document_vector):
         feature2score[feature_names[i]] = document_vector[0][i]
     return sorted(feature2score.items(), key=lambda kv: kv[1], reverse=True)
 
-extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+def language_model(X_train, max_df=0.9, ngram=(1,3), BOW=True, TFIDF=False, binary=True):
+    if BOW == True:
+        #------------------------------------
+        # Bag of Words - binary
+        #------------------------------------
+        cv = CountVectorizer(
+            max_df=max_df,
+            #max_features=10000,
+            ngram_range=ngram, #(1,3)
+            binary=binary# only 0 and 1 for each word
+        )
 
-#--------------------------
-# POS Tagging
-#--------------------------
-#nltk.download('mac_morpho')
-#nltk.corpus.mac_morpho.tagged_words()
-#nltk.download('punkt')
-#tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
+        X_train_cv = cv.fit_transform(X_train)
 
+        return cv, X_train_cv
+
+    elif TFIDF == True:
+        #------------------------
+        # TF-IDF
+        #------------------------
+        cv, X_train_cv = language_model(X_train, max_df, ngram, BOW=True, binary=False)
+
+        tfidf = TfidfTransformer()
+        X_train_cv = tfidf.fit_transform(X_train_cv)
+
+        return cv, X_train_cv, tfidf
+
+    #--------------------------
+    # POS Tagging
+    #--------------------------
+    #nltk.download('mac_morpho')
+    #nltk.corpus.mac_morpho.tagged_words()
+    #nltk.download('punkt')
+    #tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
 
 #------------------------------------------
-# ADD FEATURES (run this section if wanted)
+# ADD FEATURES
 #------------------------------------------
-train_idx = list(X_train.index)
-val_idx = list(X_val.index)
+def extra_features(df, X_data, cv, X_data_cv, testdata=None):
+    '''Creates 4 new features and returns the dataframe with them'''
+    if testdata == None:
+        data_idx = list(X_data.index)
 
-# TRAIN
-df_cleaned_train = df_cleaned.iloc[train_idx, :]
-vocab = cv.get_feature_names()
-X1 = pd.DataFrame(X_train_cv.toarray(), columns=vocab)
+        data_df = df.iloc[data_idx, :].copy()
+    else:
+        data_df = df.copy()
 
-X1['Sentences_norm'] = list(df_cleaned_train['Sentences_norm'])
-X1['Unique_words'] = list(df_cleaned_train['UniqueWords'])
-X1['Expression_Sentences'] = list(df_cleaned_train['ExpressionSentences'])
+    vocab = cv.get_feature_names()
+    data_X = pd.DataFrame(X_data_cv.toarray(), columns=vocab)
 
-aux = df_cleaned_train['WordsPerSentence'].values.reshape(-1, 1) #returns a numpy array
-min_max_scaler = MinMaxScaler()
-x1_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
-X1['Words_Per_Sentence'] = [round(x,3) for x in x1_scaled]
+    data_X['Sentences_norm'] = list(data_df['Sentences_norm'])
+    data_X['Unique_words'] = list(data_df['UniqueWords'])
+    data_X['Expression_Sentences'] = list(data_df['ExpressionSentences'])
 
-X_sparse = sparse.csr_matrix(X1.values)
+    aux = data_df['WordsPerSentence'].values.reshape(-1, 1)  # returns a numpy array
+    min_max_scaler = MinMaxScaler()
+    x_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
+    data_X['Words_Per_Sentence'] = [round(x, 3) for x in x_scaled]
 
-# VALIDATION
-df_cleaned_val = df_cleaned.iloc[val_idx,:]
-vocab = cv.get_feature_names()
-X2 = pd.DataFrame(X_val_cv.toarray(), columns = vocab)
+    #X_sparse = sparse.csr_matrix(data_X.values)
 
-X2['Sentences_norm'] = list(df_cleaned_val['Sentences_norm'])
-X2['Unique_words'] = list(df_cleaned_val['UniqueWords'])
-X2['Expression_Sentences'] = list(df_cleaned_val['ExpressionSentences'])
+    features = True
 
-aux = df_cleaned_val['WordsPerSentence'].values.reshape(-1, 1) #returns a numpy array
-min_max_scaler = MinMaxScaler()
-x2_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
-X2['Words_Per_Sentence'] = [round(x,3) for x in x2_scaled]
-
-X_sparse = sparse.csr_matrix(X2.values)
+    return data_X, features
 
 
 #------------------------------------------------------------------------------------------------------------
 # MACHINE LEARNING ALGORITHMS
 #------------------------------------------------------------------------------------------------------------
+def ml_algorithm(X_train_cv, y_train, KNN=True):
+    if KNN == True:
+        #--------------------------
+        # KNN
+        #--------------------------
+        # Clustering the document with KNN classifier
+        modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
+                                                 metric='cosine')
+        modelknn.fit(X_train_cv, y_train)
 
-#--------------------------
-# KNN
-#--------------------------
-# Clustering the document with KNN classifier
-modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
-                                         metric='cosine')
-modelknn.fit(X_train_cv, y_train)
-
-predict = modelknn.predict(X_val_cv)
+        return modelknn
 
 
-#--------------------------
-# Results
-#--------------------------
-class0 = classification_report(predict, y_val)
-print(class0)
-
-conf_matrix0 = confusion_matrix(predict, y_val)
-
-# function to display confusion matrix
-def plot_cm(confusion_matrix : np.array, classnames : list):
+#------------------------------------------------------------------------------------------------------------
+# RESULTS
+#------------------------------------------------------------------------------------------------------------
+# Function to display confusion matrix
+def plot_cm(confusion_matrix: np.array, classnames: list):
     """
-    Function that creates a confusion matrix plot using the Wikipedia convention for the axis. 
+    Function that creates a confusion matrix plot using the Wikipedia convention for the axis.
     :param confusion_matrix: confusion matrix that will be plotted
     :param classnames: labels of the classes"""
-    
+
     confusionmatrix = confusion_matrix
-    class_names = classnames             
+    class_names = classnames
 
     fig, ax = plt.subplots()
     im = plt.imshow(confusionmatrix, cmap=plt.cm.cividis)
@@ -381,115 +355,95 @@ def plot_cm(confusion_matrix : np.array, classnames : list):
     ax.set_title("Confusion Matrix")
     plt.xlabel('Targets')
     plt.ylabel('Predictions')
-    plt.ylim(top=len(class_names)-0.5)  # adjust the top leaving bottom unchanged
+    plt.ylim(top=len(class_names) - 0.5)  # adjust the top leaving bottom unchanged
     plt.ylim(bottom=-0.5)  # adjust the bottom leaving top unchanged
     return plt.show()
 
 
-labels = ['Almada Negreiros','Camilo Castelo Branco','Eça de Queirós','José Rodrigues dos Santos',
-          'José Saramago','Luísa Marques Silva']
-plot_cm(conf_matrix0, labels)
+def predict(df, cv, model, x_data, y_data, features=None, vectorizer=None, testdata=None):
+    """Function that transforms the data that we want to predict, does the final predictions according to the model
+    chosen and returns the predictions, the classification measures and the confusion matrix """
+    X_cv = cv.transform(x_data)
+
+    if features != None:
+        X_cv,_ = extra_features(df, x_data, cv, X_cv, testdata)
+
+    if vectorizer != None:
+        X_cv = vectorizer.transform(X_cv)
+
+        feature_names = cv.get_feature_names()
+
+        tf_idf_vector = vectorizer.transform(X_cv)
+
+        scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+
+    data_predict = model.predict(X_cv)
+
+    report = classification_report(data_predict, y_data)
+    conf_matrix = confusion_matrix(data_predict, y_data)
+
+    labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
+              'José Saramago', 'Luísa Marques Silva']
+
+    plot_cm(conf_matrix, labels)
+
+    if vectorizer == None:
+        return data_predict, report, conf_matrix
+    else:
+        return data_predict, report, conf_matrix, scores
+
+
+#------------------------------------------------------------------------------------------------------------
+# TRAIN PIPELINE
+#------------------------------------------------------------------------------------------------------------
+# ---- GET DATA
+df_original = get_dataframe(r'./Corpora/train/')
+
+# ---- CLEAN DATA
+df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=False)
+
+# ---- SPLIT DATA
+X_train, X_val, y_train, y_val = split(df_cleaned)
+
+# ---- CHOOSE LANGUAGE MODEL
+# If Bag of Words
+cv, X_train_cv = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=True, TFIDF=False, binary=True)
+# If TF-IDF
+# cv, X_train_cv, tfidf = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=False, TFIDF=True, binary=False)
+
+# ---- ADD EXTRA FEATURES
+features = None
+# If we want extra features, uncomment the following line
+X_train_cv, features = extra_features(df_cleaned, X_train, cv, X_train_cv)
+
+# ---- TRAIN MODEL
+# KNN
+modelknn = ml_algorithm(X_train_cv, y_train, KNN=True)
+
+# ---- PREDICT
+# If Bag-of-Words
+data_predict, report, conf_matrix = predict(df_cleaned, cv, modelknn, X_val, y_val, features)
+# If TF-IDF
+#data_predict, report, conf_matrix, scores = predict(cv, modelknn, X_val, y_val, features, vectorizer=tfidf)
 
 
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset):
+def test(testset, cv, modelknn, features, vectorizer=None):
+    """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
-    X_test_cv = cv.transform(test_cleaned['Text'])
-    test_predict = modelknn.predict(X_test_cv)
-    y_test = test_cleaned['Label']
-
-    class_test = classification_report(test_predict, y_test)
-    print(class_test)
-
-    labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
-              'José Saramago', 'Luísa Marques Silva']
-
-    conf_matrix_test = confusion_matrix(test_predict, y_test)
-    plot_cm(conf_matrix_test, labels)
-
+    return predict(test_cleaned, cv, modelknn, test_cleaned['Text'], test_cleaned['Label'], features,
+                   vectorizer, testdata=True)
 
 # 500 WORDS
-basedir = r'./Corpora/test-IMPORT/500Palavras/'
+df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 
-AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
-Camilo = import_folder_files('CamiloCasteloBranco')
-EcaQueiros = import_folder_files('EcaDeQueiros')
-JoseRodriguesSantos = import_folder_files('JoseRodriguesSantos')
-JoseSaramago = import_folder_files('JoseSaramago')
-LuisaMarquesSilva = import_folder_files('LuisaMarquesSilva')
-
-textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
-                 [EcaQueiros, 'Eça de Queiros'],
-                 [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
-                 [LuisaMarquesSilva, 'Luísa Marques Silva']]
-
-df_test_500 = pd.DataFrame(columns=['Label','Text'])
-
-df_test_500 = df_test_500[0:0]
-for lista in textos_labels:
-    df_aux = pd.DataFrame({'Label': lista[1],
-                            'Text': lista[0]
-                            })
-
-    df_test_500 = df_test_500.append(df_aux, ignore_index=True)
-
-del AlmadaNegreiros, Camilo, EcaQueiros, JoseRodriguesSantos, JoseSaramago, LuisaMarquesSilva, df_aux, lista, \
-    textos_labels, basedir
-
-test(df_test_500)
-
-test_500_cleaned = clean(df_test_500, stopwords_bol=False, stemmer_bol=False)
-
-X500_test_cv = cv.transform(test_500_cleaned['Text'])
-predict2 = modelknn.predict(X500_test_cv)
-print(predict2)
-print(test_500_cleaned['Label'])
-y_test = test_500_cleaned['Label']
-
-class_test500 = classification_report(predict2, y_test)
-print(class_test500)
-
-conf_matrix_test500 = confusion_matrix(predict2, y_test)
-plot_cm(conf_matrix_test500, labels)
+data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modelknn, features)
 
 
 # 1000 WORDS
-basedir = r'./Corpora/test-IMPORT/1000Palavras/'
+df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 
-AlmadaNegreiros = import_folder_files('AlmadaNegreiros')
-Camilo = import_folder_files('CamiloCasteloBranco')
-EcaQueiros = import_folder_files('EcaDeQueiros')
-JoseRodriguesSantos = import_folder_files('JoseRodriguesSantos')
-JoseSaramago = import_folder_files('JoseSaramago')
-LuisaMarquesSilva = import_folder_files('LuisaMarquesSilva')
-
-textos_labels = [[AlmadaNegreiros, 'Almada Negreiros'], [Camilo, 'Camilo Castelo Branco'],
-                 [EcaQueiros, 'Eça de Queiros'],
-                 [JoseRodriguesSantos, 'José Rodrigues dos Santos'], [JoseSaramago, 'José Saramago'],
-                 [LuisaMarquesSilva, 'Luísa Marques Silva']]
-
-df_test_1000 = pd.DataFrame(columns=['Label','Text'])
-
-df_test_1000 = df_test_1000[0:0]
-for lista in textos_labels:
-    df_aux = pd.DataFrame({'Label': lista[1],
-                            'Text': lista[0]
-                            })
-    df_test_1000 = df_test_1000.append(df_aux, ignore_index=True)
-
-test_1000_cleaned = clean(df_test_1000, stopwords_bol=False, stemmer_bol=False)
-
-X1000_test_cv = cv.transform(test_1000_cleaned['Text'])
-predict3 = modelknn.predict(X1000_test_cv)
-y_test1000 = test_1000_cleaned['Label']
-
-class_test1000 = classification_report(predict3, y_test1000)
-print(class_test1000)
-
-conf_matrix_test1000 = confusion_matrix(predict3, y_test1000)
-plot_cm(conf_matrix_test1000, labels)
-
-def test(df, )
+data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modelknn, features)
