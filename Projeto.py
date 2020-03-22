@@ -18,6 +18,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
+import random
+import functools
 
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -59,6 +61,86 @@ def get_dataframe(basedir):
         df = df.append(df_aux, ignore_index=True)
 
     return df
+
+#----------------------------------------------------------------------------------------------------------------
+# SAMPLING
+#----------------------------------------------------------------------------------------------------------------
+
+#Get a balanced set of samples
+#We get the least common denominator for the number of texts for each author
+#this will be the number of samples per author
+# we then just have to divide this LCDM by the number of texts of the author
+#to get the number of samples to get from each text for each author
+#
+
+def get_df_of_samples(df,multiplier,number_of_words,balanced=False):
+    """ receives a dataframe of Label, Text
+    multiplier: number of samples per text or multiplier for balanced samples
+    numberofwords: the size of each sample
+    balanced: if the should supply the same number of samples per label (author)
+    """
+    uniquecount= pd.value_counts(df.Label) #get the count of texts for each author
+
+    # We use the greatest common divisor to get  the least common denominator:
+    def gcd(a, b):
+        """Return greatest common divisor using Euclid's Algorithm."""
+        while b:      
+            a, b = b, a % b
+        return a
+
+    def lcm(a, b):
+        """Return lowest common multiple."""
+        return a * b // gcd(a, b)
+
+    # we do it iteratively for each element in the list
+    def lcmm(*args):
+        """Return lcm of args."""   
+        return functools.reduce(lcm, args)
+
+    denom=lcmm(*uniquecount)
+
+    #and we get the number of samples per author
+    samplespertext=uniquecount.to_dict()
+    for key in samplespertext:
+        samplespertext[key]=int(denom/samplespertext[key])
+
+    #Now we start to build our samples dataframe
+    df_samples= pd.DataFrame(columns=['Label','Text'])
+    
+    def get_sample(words, sizeofsample):
+        """Get a sample of size: sizeofsample , from a list of words: words
+        returns a list of words of desired size.
+        Uses the text as circular if:
+        start point + sizeofsample > lenght of text given
+        """
+        start = random.randint(0, len(words))
+        if (start + sizeofsample) > len(words):
+
+            finalwords = words[start:]
+            finalwords = finalwords + words[:(start + sizeofsample - len(words))]
+        else:
+            finalwords = finalwords = words[start:start + sizeofsample]
+
+        return finalwords
+
+    def create_samples(datadf,samplesdf,multiplier,sizeofsample,balanced=False):
+        for index, row in datadf.iterrows():
+            if balanced:
+                for i in range(0,(samplespertext[row[0]]*multiplier)): #balanced number of samples
+                    samplesdf=samplesdf.append(pd.Series([row[0], get_sample(row[1],sizeofsample)], index=datadf.columns), ignore_index=True)
+            else:
+                for i in range(0,multiplier): #number of samples per text
+                    samplesdf=samplesdf.append(pd.Series([row[0], get_sample(row[1],sizeofsample)], index=datadf.columns), ignore_index=True)
+        return samplesdf        
+
+
+            
+    return create_samples(df,df_samples,multiplier,number_of_words,balanced)
+
+
+
+
+
 
 
 #----------------------------------------------------------------------------------------------------------------
