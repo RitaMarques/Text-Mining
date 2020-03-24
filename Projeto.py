@@ -10,6 +10,7 @@ from copy import deepcopy
 import unicodedata
 import re
 from scipy import sparse
+from sklearn import linear_model
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.preprocessing import MinMaxScaler
@@ -20,6 +21,12 @@ from sklearn.metrics import classification_report
 import matplotlib.pyplot as plt
 import random
 import functools
+import warnings
+from tqdm import tqdm_notebook as tqdm
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# conda install -c conda-forge tqdm
+# conda install -c conda-forge ipywidgets
 
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -65,23 +72,22 @@ def get_dataframe(basedir):
 #----------------------------------------------------------------------------------------------------------------
 # SAMPLING
 #----------------------------------------------------------------------------------------------------------------
+''' Get a balanced set of samples
+We get the least common denominator for the number of texts for each author this will be the number of samples 
+per author, we then just have to divide this LCDM by the number of texts of the author to get the number of 
+samples to get from each text for each author'''
 
-#Get a balanced set of samples
-#We get the least common denominator for the number of texts for each author
-#this will be the number of samples per author
-# we then just have to divide this LCDM by the number of texts of the author
-#to get the number of samples to get from each text for each author
-#
 
-def get_df_of_samples(df,multiplier,number_of_words,balanced=False):
-    """ receives a dataframe of Label, Text
-    multiplier: number of samples per text or multiplier for balanced samples
-    numberofwords: the size of each sample
-    balanced: if the should supply the same number of samples per label (author)
+def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
+    """ Receives a dataframe with columns Label and Text
+    :param multiplier: number of samples per text or multiplier for balanced samples
+    :param number_of_words: the size of each sample
+    :param balanced: if the should supply the same number of samples per label (author)
+    Returns a dataframe
     """
-    uniquecount= pd.value_counts(df.Label) #get the count of texts for each author
+    uniquecount = pd.value_counts(df.Label)  # get the count of texts for each author
 
-    # We use the greatest common divisor to get  the least common denominator:
+    # We use the greatest common divisor to get the least common denominator:
     def gcd(a, b):
         """Return greatest common divisor using Euclid's Algorithm."""
         while b:      
@@ -97,15 +103,15 @@ def get_df_of_samples(df,multiplier,number_of_words,balanced=False):
         """Return lcm of args."""   
         return functools.reduce(lcm, args)
 
-    denom=lcmm(*uniquecount)
+    denom = lcmm(*uniquecount)
 
-    #and we get the number of samples per author
-    samplespertext=uniquecount.to_dict()
+    # and we get the number of samples per author
+    samplespertext = uniquecount.to_dict()
     for key in samplespertext:
-        samplespertext[key]=int(denom/samplespertext[key])
+        samplespertext[key] = int(denom/samplespertext[key])
 
-    #Now we start to build our samples dataframe
-    df_samples= pd.DataFrame(columns=['Label','Text'])
+    # Now we start to build our samples dataframe
+    df_samples = pd.DataFrame(columns=['Label', 'Text'])
     
     def get_sample(words, sizeofsample):
         """Get a sample of size: sizeofsample , from a list of words: words
@@ -123,24 +129,19 @@ def get_df_of_samples(df,multiplier,number_of_words,balanced=False):
 
         return finalwords
 
-    def create_samples(datadf,samplesdf,multiplier,sizeofsample,balanced=False):
+    def create_samples(datadf, samplesdf, multiplier, sizeofsample, balanced=False):
         for index, row in datadf.iterrows():
             if balanced:
-                for i in range(0,(samplespertext[row[0]]*multiplier)): #balanced number of samples
-                    samplesdf=samplesdf.append(pd.Series([row[0], get_sample(row[1],sizeofsample)], index=datadf.columns), ignore_index=True)
+                for i in range(0, (samplespertext[row[0]]*multiplier)):  # balanced number of samples
+                    samplesdf = samplesdf.append(pd.Series([row[0], get_sample(row[1], sizeofsample)],
+                                                           index=datadf.columns), ignore_index=True)
             else:
-                for i in range(0,multiplier): #number of samples per text
-                    samplesdf=samplesdf.append(pd.Series([row[0], get_sample(row[1],sizeofsample)], index=datadf.columns), ignore_index=True)
+                for i in range(0, multiplier):  # number of samples per text
+                    samplesdf = samplesdf.append(pd.Series([row[0], get_sample(row[1], sizeofsample)],
+                                                         index=datadf.columns), ignore_index=True)
         return samplesdf        
 
-
-            
-    return create_samples(df,df_samples,multiplier,number_of_words,balanced)
-
-
-
-
-
+    return create_samples(df, df_samples, multiplier, number_of_words, balanced)
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -377,17 +378,121 @@ def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     x_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
     data_X['Words_Per_Sentence'] = [round(x, 3) for x in x_scaled]
 
-    #X_sparse = sparse.csr_matrix(data_X.values)
+    X_sparse = sparse.csr_matrix(data_X.values)
 
     features = True
 
-    return data_X, features
+    return X_sparse, features
 
 
 #------------------------------------------------------------------------------------------------------------
 # MACHINE LEARNING ALGORITHMS
 #------------------------------------------------------------------------------------------------------------
-def ml_algorithm(X_train_cv, y_train, KNN=True):
+class Classifier(object):
+    """ Multi Class Classifier base class """
+
+    def __init__(self, input_size, n_classes):
+        """
+        Initializes a matrix in which each column will be the Weights for a specific class.
+        :param input_size: Number of features
+        :param n_classes: Number of classes to classify the inputs
+        """
+        self.parameters = np.zeros((input_size + 1, n_classes))  # input_size +1 to include the Bias term
+
+    def train(self, X, Y, devX, devY, epochs=20):
+        """
+        This trains the perceptron over a certain number of epoch and records the
+            accuracy in Train and Dev sets along each epoch.
+        :param X: numpy array with size DxN where D is the number of training examples
+                 and N is the number of features.
+        :param Y: numpy array with size D containing the correct labels for the training set
+        :param devX (optional): same as X but for the dev set.
+        :param devY (optional): same as Y but for the dev set.
+        :param epochs (optional): number of epochs to run.
+        """
+        #train_accuracy = [self.evaluate(X, Y)]
+        #dev_accuracy = [self.evaluate(devX, devY)]
+        for epoch in range(epochs):
+            for i in tqdm(range(X.shape[0])):
+                self.update_weights(X[i, :].toarray(), Y[i])
+            #outs_eval = self.evaluate(X, Y)
+            outs_evaldev = self.evaluate(devX, devY)
+            #train_accuracy.append(outs_eval[0])
+            #dev_accuracy.append(outs_evaldev[0])
+        return outs_evaldev[1]  # train_accuracy, dev_accuracy,
+            # labels x_val
+
+    def evaluate(self, X, Y):
+        """
+        Evaluates the error in a given set of examples.
+        :param X: numpy array with size DxN where D is the number of examples to
+                    evaluate and N is the number of features.
+        :param Y: numpy array with size D containing the correct labels for the training set
+        """
+        correct_predictions = 0
+        labels = []
+        Y = Y.copy()
+        Y.reset_index(inplace=True, drop=True)
+        for i in range(X.shape[0]):
+            y_pred = self.predict(X[i, :].toarray())
+            labels.append(self.predict(X[i, :].toarray()))
+            if Y[i] == y_pred:
+                correct_predictions += 1
+        return correct_predictions / X.shape[0], labels
+
+    def plot_train(self, train_accuracy, dev_accuracy):
+        """
+        Function to Plot the accuracy of the Training set and Dev set per epoch.
+        :param train_accuracy: list containing the accuracies of the train set.
+        :param dev_accuracy: list containing the accuracies of the dev set.
+        """
+        x_axis = [epoch + 1 for epoch in range(len(train_accuracy))]
+        plt.plot(x_axis, train_accuracy, '-g', linewidth=1, label='Train')
+        plt.xlabel("epochs")
+        plt.ylabel("Accuracy")
+        plt.plot(x_axis, dev_accuracy, 'b-', linewidth=1, label='Dev')
+        plt.legend()
+        plt.show()
+
+class MultinomialLR(Classifier):
+    """ Multinomial Logistic Regression """
+
+    def __init__(self, input_size, n_classes, lr=0.001):
+        """
+        Initializes a matrix in which each column will be the Weights for a specific class.
+        :param input_size: Number of features
+        :param n_classes: Number of classes to classify the inputs
+        """
+        Classifier.__init__(self, input_size, n_classes)
+        self.lr = lr
+
+    def predict(self, input):
+        """
+        This function will add a Bias value to the received input, multiply the
+            Weights corresponding to the different classes with the input vector, run
+            a softmax function and choose the class that achieves an higher probability.
+        :param x: numpy array with size 1xN where N = number of features.
+        """
+        return np.argmax(self.softmax(np.dot(np.append(input, [1]), self.parameters)))
+
+    def softmax(self, x):
+        """ Compute softmax values for each sets of scores in x."""
+        return np.exp(x - np.max(x)) / np.sum(np.exp(x - np.max(x)), axis=0)
+
+    def update_weights(self, x, y):
+        """
+        Function that will take an input example and the true prediction and will update
+            the model parameters.
+        :param x: Array of size N where N its the number of features that the model takes as input.
+        :param y: The int corresponding to the correct label.
+        """
+        linear = np.dot(np.append(x, [1]), self.parameters)
+        predictions = self.softmax(linear)
+        self.parameters = self.parameters - self.lr * (np.outer(predictions, np.append(x, [1])).T)
+        self.parameters[:, y] = self.parameters[:, y] + self.lr * np.append(x, [1])
+
+
+def ml_algorithm(X_train_cv, y_train, KNN=True, MLR=False):
     if KNN == True:
         #--------------------------
         # KNN
@@ -398,7 +503,10 @@ def ml_algorithm(X_train_cv, y_train, KNN=True):
         modelknn.fit(X_train_cv, y_train)
 
         return modelknn
+    elif MLR == True:
+        lr = MultinomialLR(X_train_cv.shape[1], len(np.unique(y_train)))
 
+        return lr
 
 #------------------------------------------------------------------------------------------------------------
 # RESULTS
@@ -442,7 +550,8 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
     return plt.show()
 
 
-def predict(df, cv, model, x_data, y_data, features=None, vectorizer=None, testdata=None):
+def predict(df, cv, model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
+            vectorizer=None, testdata=None):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -459,7 +568,10 @@ def predict(df, cv, model, x_data, y_data, features=None, vectorizer=None, testd
 
         scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 
-    data_predict = model.predict(X_cv)
+    if model == lr:
+        data_predict = model.train(X=X_train_cv, Y=y_train, devX=x_data, devY=y_data, epochs=20)
+    else:
+        data_predict = model.predict(X_cv)
 
     report = classification_report(data_predict, y_data)
     conf_matrix = confusion_matrix(data_predict, y_data)
@@ -481,8 +593,16 @@ def predict(df, cv, model, x_data, y_data, features=None, vectorizer=None, testd
 # ---- GET DATA
 df_original = get_dataframe(r'./Corpora/train/')
 
+# ---- SAMPLE DATA
+#df_sampled = get_df_of_samples(df_original, multiplier=10, number_of_words=1000, balanced=False)
+df_sampled = get_df_of_samples(df_original, multiplier=1, number_of_words=500, balanced=True)
+#df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True)
+
 # ---- CLEAN DATA
-df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=False)
+# with original data
+#df_cleaned = clean(df_original, stopwords_bol=True, stemmer_bol=True)
+# with sampled data
+df_cleaned = clean(df_sampled, stopwords_bol=True, stemmer_bol=True)
 
 # ---- SPLIT DATA
 X_train, X_val, y_train, y_val = split(df_cleaned)
@@ -496,18 +616,22 @@ cv, X_train_cv = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=True, TFID
 # ---- ADD EXTRA FEATURES
 features = None
 # If we want extra features, uncomment the following line
-X_train_cv, features = extra_features(df_cleaned, X_train, cv, X_train_cv)
+#X_train_cv, features = extra_features(df_cleaned, X_train, cv, X_train_cv)
 
 # ---- TRAIN MODEL
 # KNN
-modelknn = ml_algorithm(X_train_cv, y_train, KNN=True)
+modelknn = ml_algorithm(X_train_cv, y_train, KNN=True, MLR=False)
+# Multinomial Logistic Regression Perceptron
+lr = ml_algorithm(X_train_cv, y_train, KNN=False, MLR=True)
 
 # ---- PREDICT
 # If Bag-of-Words
 data_predict, report, conf_matrix = predict(df_cleaned, cv, modelknn, X_val, y_val, features)
 # If TF-IDF
 #data_predict, report, conf_matrix, scores = predict(cv, modelknn, X_val, y_val, features, vectorizer=tfidf)
-
+# If Multinomial Logistic Regression Perceptron
+data_predict, report, conf_matrix = predict(df=df_cleaned, cv=cv, model=lr, x_data=X_val, y_data=y_val,
+                                            X_train_cv=X_train_cv, y_train=y_train, features=features)
 
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
