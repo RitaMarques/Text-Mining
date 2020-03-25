@@ -303,7 +303,7 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 #----------------------------------------------------------------------------------------------------------------
 def split(df, dummy_y=None, test_size=0.2):
     '''The dataframe has at least 2 columns named Text and Label'''
-    if dummy_y==None:
+    if dummy_y is None:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
                                                         stratify=df['Label'], shuffle=True, random_state=1)
     else:
@@ -366,7 +366,7 @@ def language_model(X_train, max_df=0.9, ngram=(1,3), langmodel="BOW", binary=Tru
 #------------------------------------------
 def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     '''Creates 4 new features and returns the dataframe with them'''
-    if testdata == None:
+    if testdata is None:
         data_idx = list(X_data.index)
 
         data_df = df.iloc[data_idx, :].copy()
@@ -612,7 +612,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
 
     plot_cm(conf_matrix, labels)
 
-    if tfidf == None:
+    if tfidf is None:
         if trymodel == "MLRP":
             return encode_labels, data_predict, report, conf_matrix
         else:
@@ -734,13 +734,13 @@ sampling = True               # wether to use sampling (T) or original (F)
 multiply = 2                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = True             # wether to remove stopwords (T) or not (F)
-stemming = True              # Wether to apply a Stemmer (T) or not (F)
+stop_words = False            # wether to remove stopwords (T) or not (F)
+stemming = True               # Wether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
-binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "MLRP"           # option  "KNN,"MLRP","NN"
+binary_vec = False             # Vectorizer counts or only notes presence (T)
+modeltotest = "NN"           # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
