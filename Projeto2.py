@@ -9,13 +9,14 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
-from tensorflow.keras.models import Sequential
-from tensorflow.keras import layers
-from keras.layers import Dense
-from keras.wrappers.scikit_learn import KerasClassifier
-from keras.utils import np_utils
+#from tensorflow.keras.models import Sequential
+#from tensorflow.keras import layers
+#from keras.layers import Dense
+#from keras.wrappers.scikit_learn import KerasClassifier
+#from keras.utils import np_utils
 from scipy import sparse
-from sklearn import linear_model
+from sklearn import linear_model, preprocessing
+from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.preprocessing import MinMaxScaler
@@ -353,16 +354,9 @@ def language_model(X_train, max_df=0.9, ngram=(1,3), langmodel="BOW", binary=Tru
 
         return cv, X_train_cv, tfidf
 
-    else:   #default to BOW
-        print("no valid language model, defaulting to BOW")
+    else:   # default to BOW
+        print("No valid language model, defaulting to BOW")
         return language_model(X_train, max_df, ngram, langmodel="BOW", binary=binary)
-    #--------------------------
-    # POS Tagging
-    #--------------------------
-    #nltk.download('mac_morpho')
-    #nltk.corpus.mac_morpho.tagged_words()
-    #nltk.download('punkt')
-    #tagger = nltk.data.load('tokenizers/punkt/portuguese.pickle')
 
 #------------------------------------------
 # ADD FEATURES
@@ -388,11 +382,9 @@ def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     x_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
     data_X['Words_Per_Sentence'] = [round(x, 3) for x in x_scaled]
 
-    #X_sparse = sparse.csr_matrix(data_X.values) 
-
     features = True
 
-    return data_X, features #changed
+    return data_X, features
 
 
 #------------------------------------------------------------------------------------------------------------
@@ -483,30 +475,29 @@ class MultinomialLR(Classifier):
         self.parameters[:, y] = self.parameters[:, y] + self.lr * np.append(x, [1])
 
 
-def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7):
+def ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=7):
     if model == "KNN":
         #--------------------------
         # KNN
         #--------------------------
         # Classifying with KNN
-        modelknn = KNeighborsClassifier(n_neighbors=neighbors, weights='distance', algorithm='brute',
-                                                 metric='cosine')
+        modelknn = KNeighborsClassifier(n_neighbors=neighbors, weights='distance', algorithm='brute', metric='cosine')
         modelknn.fit(X_train_cv, y_train)
 
         return modelknn
 
     elif model == "MLRP":
-        #--------------------------
-        # Logistic Regression
-        #--------------------------
-        # Classifying with LR
+        #--------------------------------------------
+        # Multinomial Logistic Regression Perceptron
+        #--------------------------------------------
+        # Classifying with MLR
         lr = MultinomialLR(X_train_cv.shape[1], len(np.unique(y_train)))
 
         return lr
     else:
         print("No valid model selected, defaulting to KNN")
-        return ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=neighbors)
-    #Expandable to more models in the future
+        return ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
+    # Expandable to more models in the future
 
 #------------------------------------------------------------------------------------------------------------
 # RESULTS
@@ -572,7 +563,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
         encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
     elif trymodel=="KNN": 
         data_predict = model.predict(X_cv)
-    else:  #default to KNN, expandable to newmodels
+    else:  # default to KNN, expandable to newmodels
         data_predict = model.predict(X_cv)
 
     report = classification_report(data_predict, y_data)
@@ -595,17 +586,16 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
 #------------------------------------------------------------------------------------------------------------
 # TRAIN PIPELINE
 #------------------------------------------------------------------------------------------------------------
+def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemmer=False,
+                 max_df=0.9, ngram=(1,3), langmodel="BOW", binary=True, features=False,
+                 trymodel="KNN", neighbors=5,
+                 dropout=0.5, loss="categorical_crossentropy", epochs=2, batch_size=100):
 # ---- GET DATA
-def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=False,
-                    max_df=0.9, ngram=(1,3), langmodel="BOW", binary=True,
-                    features=False,
-                    trymodel="KNN",neighbors=5):
     df_original = get_dataframe(r'./Corpora/train/')
 
 
 # ---- SAMPLE AND CLEAN
     if sampled:
-        
         df_sampled = get_df_of_samples(df_original, multiply, words, balanced)
         df_cleaned = clean(df_sampled, stopwords, stemmer)
     else:
@@ -631,23 +621,23 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
 
 
 # ---- TRAIN MODEL & PREDICT
-    if trymodel=="KNN":
-
+    if trymodel == "KNN":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
-        if langmodel=="TFIDF":
-            data_predict, report, conf_matrix, scores = predict(df_cleaned, cv,trymodel, in_use_model, X_val, y_val, features, vectorizer="tfidf")
 
-        elif langmodel=="BOW": #Bag of Words
+        if langmodel == "TFIDF":
+            data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                features, vectorizer="tfidf")
+        elif langmodel == "BOW":  # Bag of Words
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
-        else:   #default toBag of Words
+        else:   # default to Bag of Words
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
 
-    elif trymodel=="MLRP":
-# If Multinomial Logistic Regression Perceptron
+    elif trymodel == "MLRP":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="MLRP")
-        data_predict, report, conf_matrix = predict(df_cleaned, cv,trymodel, model=in_use_model, x_data=X_val, y_data=y_val,
-                                            X_train_cv=X_train_cv, y_train=y_train, features=features)
-    
+        data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, model=in_use_model, x_data=X_val,
+                                                    y_data=y_val, X_train_cv=X_train_cv, y_train=y_train,
+                                                    features=features)
+
     print(report)
     return cv, in_use_model, features, X_train_cv
 
@@ -661,27 +651,43 @@ def test(testset, cv, modeltotest, in_use_model, features, vectorizer=None):
     return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
                    vectorizer, testdata=True)
 
-##################################################
-# Define model conditions - can be changed in each model or set defaults
-##################################################
 
-modeltotest="KNN"           #option  "KNN,"MLRP"
-langmodeltotest="BOW"       #options "BOW,TFIDF"
-sampling=True               #wether to use sampling (T) or original
-balancing=True              #balanced (T) or unbalanced sampling
-stop_words=True              #wether to remove stopwords (T) or not
-stemming=False              #Wether to apply a Stemmer (T) or not
-max_df=0.9                  #CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
-ngram=(1,3)                 #range of n-grams to be extracted (min,max)
-binary_vec=True             #Vectorizer counts or only notes presence (T)
+#------------------------------------------------------------------------------------------------------------
+# DEFINE HYPOTHESES PIPELINE: Define model conditions - can be changed in each model or set defaults
+#------------------------------------------------------------------------------------------------------------
+
+sampling = True               # wether to use sampling (T) or original (F)
+multiply = 2                  # multipler on sampling
+words = 1000                  # number of words per sample text
+balancing = True              # balanced (T) or unbalanced sampling (F)
+stop_words = True             # wether to remove stopwords (T) or not (F)
+stemming = False              # Wether to apply a Stemmer (T) or not (F)
+langmodeltotest = "BOW"       # options "BOW, TFIDF"
+max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
+ngram = (1,3)                 # range of n-grams to be extracted (min,max)
+binary_vec = True             # Vectorizer counts or only notes presence (T)
+modeltotest = "KNN"           # option  "KNN,"MLRP","NN"
+neighbors = 5                 # number of neighbors to apply on KNN when used
+dropout = 0.5                 # for NN on modeltotest
+loss = "categorical_crossentropy"   # for NN on modeltotest
+epochs = 2                     # for NN on modeltotest
+batch = 100                    # for NN on modeltotest
+
+
+cv, in_use_model, features, X_train_cv = run_pipeline(
+    sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
+    stopwords=stop_words, stemmer=stemming,                                      # clean
+    max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
+    trymodel=modeltotest, neighbors=neighbors,                                   # machine learning algorithm
+    dropout=dropout, loss=loss, epochs=epochs, batch_size=batch)                 # machine learning algorithm
 
 
 
 # 500 WORDS
 cv, in_use_model, features, X_train_cv= run_pipeline(sampling,multiply=5,words=500, balanced=balancing,     #sampling
-               stopwords=stop_words,stemmer=stemming,                                                    #processing
+               stopwords=stop_words, stemmer=stemming,                                                    #processing
                max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,                  #language model     
-               trymodel=modeltotest,neighbors=7                                                 #ml model           
+               trymodel=modeltotest,neighbors=7                                                 # ml model
                 )
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features)
@@ -690,7 +696,7 @@ data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, 
 cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
                 stopwords=stop_words,stemmer=stemming,                                
                 max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,        
-                trymodel=modeltotest, neighbors=5                                              
+                trymodel=modeltotest, neighbors=5
                 )
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
