@@ -507,7 +507,7 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
 
         # Number of features
         input_dim = X_train_cv.shape[1] 
-
+        print(X_train_cv.shape)
         # Create model
         modelnn = Sequential()
         modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
@@ -579,10 +579,10 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
 
-    if features != None:
+    if features is not None:
         X_cv,_ = extra_features(df, x_data, cv, X_cv, testdata)
 
-    if tfidf != None:
+    if tfidf is not None:
         X_cv = tfidf.transform(X_cv)
 
         feature_names = cv.get_feature_names()
@@ -739,14 +739,14 @@ stemming = True               # Wether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
-binary_vec = False             # Vectorizer counts or only notes presence (T)
-modeltotest = "NN"           # option  "KNN,"MLRP","NN"
+binary_vec = False            # Vectorizer counts or only notes presence (T)
+modeltotest = "NN"            # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
-epochs = 2                     # for NN or MLRP on modeltotest
-batch = 100                    # for NN on modeltotest
-
+epochs = 2                    # for NN or MLRP on modeltotest
+batch = 100                   # for NN on modeltotest
+features = None               # wether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
