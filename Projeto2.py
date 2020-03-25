@@ -509,10 +509,10 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
         input_dim = X_train_cv.shape[1] 
         print(X_train_cv.shape)
         # Create model
-        #modelnn = Sequential()
-        #modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
-        #modelnn.add(layers.Dropout(dropout))
-        #modelnn.add(layers.Dense(6, activation='softmax'))
+        modelnn = Sequential()
+        modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+        modelnn.add(layers.Dropout(dropout))
+        modelnn.add(layers.Dense(6, activation='softmax'))
 
         # Compile model
         modelnn.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
@@ -655,9 +655,9 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
         X_train, X_val, y_train, y_val = split(df_cleaned, dummy_y)
 
 # ---- CHOOSE LANGUAGE MODEL
-    if langmodel=="TFIDF":
+    if langmodel == "TFIDF":
          cv, X_train_cv, tfidf = language_model(X_train, max_df, ngram, langmodel, binary)
-    elif langmodel=="BOW": #Bag of Words
+    elif langmodel == "BOW": # Bag of Words
         cv, X_train_cv = language_model(X_train, max_df, ngram, langmodel, binary)
 
 
