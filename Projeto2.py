@@ -574,7 +574,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
 
 
 def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
-            tfidf=None, testdata=None, epochs=2):
+            tfidf=None, testdata=None, epochs=2, encoder=None):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -704,11 +704,13 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features=features, tfidf=tfidf)
+                                                                features=features, tfidf=tfidf, encoder=encoder)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, 
+                                                        features=features, encoder=encoder)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
+                                                         features=features, encoder=encoder)
 
     print(report)
     return cv, in_use_model, features, X_train_cv, report
