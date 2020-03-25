@@ -29,7 +29,6 @@ import random
 import functools
 import warnings
 from tqdm import tqdm_notebook as tqdm
-nltk.download('stopwords')
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # conda install -c conda-forge tqdm
@@ -542,7 +541,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
 
 
 def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
-            vectorizer=None, testdata=None):
+            vectorizer=None, testdata=None, epochs=2):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -626,7 +625,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features, vectorizer="tfidf")
+                                                                features, tfidf=tfidf)
         elif langmodel == "BOW":  # Bag of Words
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
         else:   # default to Bag of Words
@@ -634,12 +633,13 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
     elif trymodel == "MLRP":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="MLRP")
-        data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, model=in_use_model, x_data=X_val,
-                                                    y_data=y_val, X_train_cv=X_train_cv, y_train=y_train,
-                                                    features=features)
+        encode_labels, data_predict, report, conf_matrix = predict(
+                    df_cleaned, cv, trymodel, model=in_use_model, x_data=X_val,
+                    y_data=y_val, X_train_cv=X_train_cv, y_train=y_train,
+                    features=features, epochs=epochs)
 
     print(report)
-    return cv, in_use_model, features, X_train_cv
+    return cv, in_use_model, features, X_train_cv, report
 
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
@@ -661,20 +661,20 @@ multiply = 2                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
 stop_words = True             # wether to remove stopwords (T) or not (F)
-stemming = False              # Wether to apply a Stemmer (T) or not (F)
+stemming = True              # Wether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
 binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "KNN"           # option  "KNN,"MLRP","NN"
-neighbors = 5                 # number of neighbors to apply on KNN when used
+modeltotest = "MLRP"           # option  "KNN,"MLRP","NN"
+neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
-epochs = 2                     # for NN on modeltotest
+epochs = 2                     # for NN or MLRP on modeltotest
 batch = 100                    # for NN on modeltotest
 
 
-cv, in_use_model, features, X_train_cv = run_pipeline(
+cv, in_use_model, features, X_train_cv, report = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
     stopwords=stop_words, stemmer=stemming,                                      # clean
     max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
@@ -684,20 +684,20 @@ cv, in_use_model, features, X_train_cv = run_pipeline(
 
 
 # 500 WORDS
-cv, in_use_model, features, X_train_cv= run_pipeline(sampling,multiply=5,words=500, balanced=balancing,     #sampling
-               stopwords=stop_words, stemmer=stemming,                                                    #processing
-               max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,                  #language model     
-               trymodel=modeltotest,neighbors=7                                                 # ml model
-                )
+#cv, in_use_model, features, X_train_cv= run_pipeline(sampling,multiply=5,words=500, balanced=balancing,     #sampling
+#               stopwords=stop_words, stemmer=stemming,                                                    #processing
+#               max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,                  #language model
+#               trymodel=modeltotest,neighbors=7                                                 # ml model
+#                )
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features)
 
 # 1000 WORDS
-cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
-                stopwords=stop_words,stemmer=stemming,                                
-                max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,        
-                trymodel=modeltotest, neighbors=5
-                )
+#cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
+#                stopwords=stop_words,stemmer=stemming,
+#                max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,
+#                trymodel=modeltotest, neighbors=5
+#                )
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features)
