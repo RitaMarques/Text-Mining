@@ -301,10 +301,14 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 #----------------------------------------------------------------------------------------------------------------
 # Split dataset
 #----------------------------------------------------------------------------------------------------------------
-def split(df, test_size=0.2):
+def split(df, dummy_y=None, test_size=0.2):
     '''The dataframe has at least 2 columns named Text and Label'''
-    X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
-                                                      stratify=df['Label'], shuffle=True, random_state=1)
+    if dummy_y==None:
+        X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
+                                                        stratify=df['Label'], shuffle=True, random_state=1)
+    else:
+        X_train, X_val, y_train, y_val = train_test_split(df['Text'], dummy_y, test_size=test_size,
+                                                        stratify=dummy_y, shuffle=True, random_state=1)
 
     return X_train, X_val, y_train, y_val
 
@@ -483,7 +487,8 @@ class MultinomialLR(Classifier):
         self.parameters[:, y] = self.parameters[:, y] + self.lr * np.append(x, [1])
 
 
-def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7):
+def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
+                 loss='categorical_crossentropy', epochs=2, batch_size=100):
     if model == "KNN":
         #--------------------------
         # KNN
@@ -503,6 +508,34 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7):
         lr = MultinomialLR(X_train_cv.shape[1], len(np.unique(y_train)))
 
         return lr
+
+    elif model == "NN":
+        #--------------------------
+        # Neural Network
+        #--------------------------
+        # Classifying with NN
+
+        # Number of features
+        input_dim = X_train_cv.shape[1] 
+
+        # Create model
+        modelnn = Sequential()
+        modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+        modelnn.add(layers.Dropout(dropout))
+        modelnn.add(layers.Dense(6, activation='softmax'))
+
+        # Compile model
+        modelnn.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
+
+        # Fit model
+        modelnn.fit(X_train_cv.toarray(), y_train,
+                     epochs=epochs, 
+                     verbose=2,
+                     batch_size=batch_size)
+        # Get train accuracy
+        loss, train_accuracy = modelnn.evaluate(X_train_cv.toarray(), y_train, verbose=2)
+        return modelnn, train_accuracy
+
     else:
         print("No valid model selected, defaulting to KNN")
         return ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=neighbors)
@@ -551,7 +584,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
 
 
 def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
-            vectorizer=None, testdata=None):
+            tfidf=None, testdata=None):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -559,19 +592,25 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
     if features != None:
         X_cv,_ = extra_features(df, x_data, cv, X_cv, testdata)
 
-    if vectorizer != None:
-        X_cv = vectorizer.transform(X_cv)
+    if tfidf != None:
+        X_cv = tfidf.transform(X_cv)
 
         feature_names = cv.get_feature_names()
 
-        tf_idf_vector = vectorizer.transform(X_cv)
-
-        scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+        scores = extract_feature_scores(feature_names, X_cv.toarray())[:30]
 
     if trymodel == "MLRP":
         encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
     elif trymodel=="KNN": 
         data_predict = model.predict(X_cv)
+    elif trymodel == "NN":
+        data_predict = model.predict_classes(X_cv.toarray())
+        data_predict = encoder.inverse_transform(data_predict)
+
+        y_data = np.array([np.where(elem==1)[0][0] for elem in y_data])
+        y_data = np.argmax(np_utils.to_categorical(y_data), axis = 1)
+        y_data = encoder.inverse_transform(y_data)
+        
     else:  #default to KNN, expandable to newmodels
         data_predict = model.predict(X_cv)
 
@@ -611,10 +650,20 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
     else:
         df_cleaned = clean(df_original, stopwords, stemmer)
 
+# ---- LABEL ENCODER (for NN)
+    if trymodel=="NN":
+        # encode class values as integers
+        encoder = LabelEncoder()
+        encoder.fit(df_cleaned.Label)
+        encoded_Y = encoder.transform(df_cleaned.Label)
+        # convert integers to dummy variables 
+        dummy_y = np_utils.to_categorical(encoded_Y)
 
 # ---- SPLIT DATA
-    X_train, X_val, y_train, y_val = split(df_cleaned)
-
+    if trymodel!="NN":
+        X_train, X_val, y_train, y_val = split(df_cleaned)
+    else:
+        X_train, X_val, y_train, y_val = split(df_cleaned, dummy_y)
 
 # ---- CHOOSE LANGUAGE MODEL
     if langmodel=="TFIDF":
@@ -648,6 +697,12 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
         data_predict, report, conf_matrix = predict(df_cleaned, cv,trymodel, model=in_use_model, x_data=X_val, y_data=y_val,
                                             X_train_cv=X_train_cv, y_train=y_train, features=features)
     
+    elif trymodel=="NN":
+        in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="NN", dropout=dropout, loss=loss,
+                                                epochs=epochs, batch_size=batch_size)
+        print("Train Accuracy: {:.4f}".format(train_accuracy))
+        
+
     print(report)
     return cv, in_use_model, features, X_train_cv
 
