@@ -661,7 +661,7 @@ df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modelknn, features)
 
-# NEURAL NETWORK--------------------
+# -------------------------NEURAL NETWORK--------------------
 
 df_original = get_dataframe(r'./Corpora/train/')
 
@@ -672,7 +672,7 @@ df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, 
 # with original data
 #df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
 # with sampled data
-df_cleaned = clean(df_sampled, stopwords_bol=True, stemmer_bol=True)
+df_cleaned = clean(df_sampled, stopwords_bol=False, stemmer_bol=True)
 
 # get unique classes
 y=df_cleaned.Label
@@ -697,6 +697,15 @@ cv = CountVectorizer(
 
 X_train_cv = cv.fit_transform(X_train)
 X_val_cv = cv.transform(X_val)
+
+# If TF IDF
+#tfidf = TfidfTransformer()
+#X_train_cv = tfidf.fit_transform(X_train_cv)
+#X_val_cv = tfidf.fit_transform(X_val_cv)
+
+# Add features
+X_train_cv,_ = extra_features(df_cleaned, X_train, cv, X_train_cv, testdata=None)
+X_val_cv,_ = extra_features(df_cleaned, X_val, cv, X_val_cv, testdata=None)
 
 #from keras.optimizers import SGD
 
@@ -744,10 +753,17 @@ plot_cm(conf_matrix, labels)
 
 # 500 words
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
+df_test_500 = clean(df_test_500, stopwords_bol=False, stemmer_bol=True)
 X_test500 = df_test_500['Text']
 y_test500 = df_test_500['Label']
 
 X_test_cv500 = cv.transform(X_test500)
+# extra features
+X_test_cv500,_ = extra_features(df_test_500, X_test500, cv, X_test_cv500, testdata=True)
+
+# If TF IDF
+#X_test_cv500 = tfidf.fit_transform(X_test_cv500)
+
 y_array500 = y_test500.to_numpy()
 
 predictions500 = model.predict_classes(X_test_cv500.toarray())
@@ -759,10 +775,17 @@ plot_cm(conf_matrix_test500, labels)
 
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
+df_test_1000 = clean(df_test_1000, stopwords_bol=False, stemmer_bol=True)
 X_test1000 = df_test_1000['Text']
 y_test1000 = df_test_1000['Label']
 
 X_test_cv1000 = cv.transform(X_test1000)
+# extra features
+X_test_cv1000,_ = extra_features(df_test_1000, X_test1000, cv, X_test_cv1000, testdata=True)
+
+# If TF IDF
+#X_test_cv1000 = tfidf.fit_transform(X_test_cv1000)
+
 y_array1000 = y_test1000.to_numpy()
 
 predictions1000 = model.predict_classes(X_test_cv1000.toarray())
