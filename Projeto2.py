@@ -9,11 +9,11 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
-#from tensorflow.keras.models import Sequential
-#from tensorflow.keras import layers
-#from keras.layers import Dense
-#from keras.wrappers.scikit_learn import KerasClassifier
-#from keras.utils import np_utils
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import layers
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from keras.utils import np_utils
 from scipy import sparse
 from sklearn import linear_model, preprocessing
 from sklearn.preprocessing import LabelEncoder
@@ -301,10 +301,14 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 #----------------------------------------------------------------------------------------------------------------
 # Split dataset
 #----------------------------------------------------------------------------------------------------------------
-def split(df, test_size=0.2):
+def split(df, dummy_y=None, test_size=0.2):
     '''The dataframe has at least 2 columns named Text and Label'''
-    X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
-                                                      stratify=df['Label'], shuffle=True, random_state=1)
+    if dummy_y==None:
+        X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
+                                                        stratify=df['Label'], shuffle=True, random_state=1)
+    else:
+        X_train, X_val, y_train, y_val = train_test_split(df['Text'], dummy_y, test_size=test_size,
+                                                        stratify=dummy_y, shuffle=True, random_state=1)
 
     return X_train, X_val, y_train, y_val
 
@@ -474,7 +478,8 @@ class MultinomialLR(Classifier):
         self.parameters[:, y] = self.parameters[:, y] + self.lr * np.append(x, [1])
 
 
-def ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=7):
+def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
+                 loss='categorical_crossentropy', epochs=2, batch_size=100):
     if model == "KNN":
         #--------------------------
         # KNN
@@ -493,6 +498,34 @@ def ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=7):
         lr = MultinomialLR(X_train_cv.shape[1], len(np.unique(y_train)))
 
         return lr
+
+    elif model == "NN":
+        #--------------------------
+        # Neural Network
+        #--------------------------
+        # Classifying with NN
+
+        # Number of features
+        input_dim = X_train_cv.shape[1] 
+
+        # Create model
+        modelnn = Sequential()
+        modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+        modelnn.add(layers.Dropout(dropout))
+        modelnn.add(layers.Dense(6, activation='softmax'))
+
+        # Compile model
+        modelnn.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
+
+        # Fit model
+        modelnn.fit(X_train_cv.toarray(), y_train,
+                     epochs=epochs, 
+                     verbose=2,
+                     batch_size=batch_size)
+        # Get train accuracy
+        loss, train_accuracy = modelnn.evaluate(X_train_cv.toarray(), y_train, verbose=2)
+        return modelnn, train_accuracy
+
     else:
         print("No valid model selected, defaulting to KNN")
         return ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
@@ -541,7 +574,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
 
 
 def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
-            vectorizer=None, testdata=None, epochs=2):
+            tfidf=None, testdata=None, epochs=2):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -549,20 +582,26 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
     if features != None:
         X_cv,_ = extra_features(df, x_data, cv, X_cv, testdata)
 
-    if vectorizer != None:
-        X_cv = vectorizer.transform(X_cv)
+    if tfidf != None:
+        X_cv = tfidf.transform(X_cv)
 
         feature_names = cv.get_feature_names()
 
-        tf_idf_vector = vectorizer.transform(X_cv)
-
-        scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
+        scores = extract_feature_scores(feature_names, X_cv.toarray())[:30]
 
     if trymodel == "MLRP":
         encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
     elif trymodel=="KNN": 
         data_predict = model.predict(X_cv)
-    else:  # default to KNN, expandable to newmodels
+    elif trymodel == "NN":
+        data_predict = model.predict_classes(X_cv.toarray())
+        data_predict = encoder.inverse_transform(data_predict)
+
+        y_data = np.array([np.where(elem==1)[0][0] for elem in y_data])
+        y_data = np.argmax(np_utils.to_categorical(y_data), axis = 1)
+        y_data = encoder.inverse_transform(y_data)
+        
+    else:  #default to KNN, expandable to newmodels
         data_predict = model.predict(X_cv)
 
     report = classification_report(data_predict, y_data)
@@ -573,7 +612,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
 
     plot_cm(conf_matrix, labels)
 
-    if vectorizer == None:
+    if tfidf == None:
         if trymodel == "MLRP":
             return encode_labels, data_predict, report, conf_matrix
         else:
@@ -600,10 +639,20 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
     else:
         df_cleaned = clean(df_original, stopwords, stemmer)
 
+# ---- LABEL ENCODER (for NN)
+    if trymodel=="NN":
+        # encode class values as integers
+        encoder = LabelEncoder()
+        encoder.fit(df_cleaned.Label)
+        encoded_Y = encoder.transform(df_cleaned.Label)
+        # convert integers to dummy variables 
+        dummy_y = np_utils.to_categorical(encoded_Y)
 
 # ---- SPLIT DATA
-    X_train, X_val, y_train, y_val = split(df_cleaned)
-
+    if trymodel!="NN":
+        X_train, X_val, y_train, y_val = split(df_cleaned)
+    else:
+        X_train, X_val, y_train, y_val = split(df_cleaned, dummy_y)
 
 # ---- CHOOSE LANGUAGE MODEL
     if langmodel=="TFIDF":
@@ -625,18 +674,41 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features, tfidf=tfidf)
+                                                                features=features, tfidf=tfidf)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
 
     elif trymodel == "MLRP":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="MLRP")
-        encode_labels, data_predict, report, conf_matrix = predict(
-                    df_cleaned, cv, trymodel, model=in_use_model, x_data=X_val,
-                    y_data=y_val, X_train_cv=X_train_cv, y_train=y_train,
-                    features=features, epochs=epochs)
+
+        if langmodel == "TFIDF":
+            encode_labels, data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                X_train_cv=X_train_cv, y_train=y_train, 
+                                                                tfidf=tfidf, features=features)
+        elif langmodel == "BOW":  # Bag of Words
+            encode_labels, data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                X_train_cv=X_train_cv, y_train=y_train, 
+                                                                features=features)
+        else:   # default to Bag of Words
+            encode_labels, data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                X_train_cv=X_train_cv, y_train=y_train, 
+                                                                features=features)
+
+
+    elif trymodel=="NN":
+        in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="NN", dropout=dropout, loss=loss,
+                                                epochs=epochs, batch_size=batch_size)
+        print("Train Accuracy: {:.4f}".format(train_accuracy))
+
+        if langmodel == "TFIDF":
+            data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                features=features, tfidf=tfidf)
+        elif langmodel == "BOW":  # Bag of Words
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
+        else:   # default to Bag of Words
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
 
     print(report)
     return cv, in_use_model, features, X_train_cv, report
@@ -644,12 +716,12 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modeltotest, in_use_model, features, vectorizer=None):
+def test(testset, cv, modeltotest, in_use_model, features, tfidf=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
     return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
-                   vectorizer, testdata=True)
+                   tfidf, testdata=True)
 
 
 #------------------------------------------------------------------------------------------------------------
@@ -701,114 +773,3 @@ data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, 
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features)
-
-
-###################################### NEURAL NETWORK-############################33
-
-df_original = get_dataframe(r'./Corpora/train/')
-
-# ---- SAMPLE DATA
-df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True)
-
-# ---- CLEAN DATA
-# with original data
-#df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
-# with sampled data
-df_cleaned = clean(df_sampled, stopwords_bol=True, stemmer_bol=True)
-
-# get unique classes
-y=df_cleaned.Label
-X = df_cleaned['Text']
-# encode class values as integers
-encoder = LabelEncoder()
-encoder.fit(y)
-encoded_Y = encoder.transform(y)
-# convert integers to dummy variables (i.e. one hot encoded)
-dummy_y = np_utils.to_categorical(encoded_Y)
-dummy_y
-# ---- SPLIT DATA
-X_train, X_val, y_train, y_val = train_test_split(X, dummy_y, test_size=0.2,
-                                                      stratify=dummy_y, shuffle=True, random_state=1)
-
-cv = CountVectorizer(
-            max_df=0.9,
-            #max_features=10000,
-            ngram_range=(1,3), #(1,3)
-            binary=True# only 0 and 1 for each word
-        )
-
-X_train_cv = cv.fit_transform(X_train)
-X_val_cv = cv.transform(X_val)
-
-#from keras.optimizers import SGD
-
-input_dim = X_train_cv.shape[1]  # Number of features
-
-# create model
-model = Sequential()
-model.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
-model.add(layers.Dropout(0.5))
-model.add(layers.Dense(6, activation='softmax'))
-# Compile model
-#sgd = SGD(lr=0.1, momentum=0.9)
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-model.summary()
-
-history = model.fit(X_train_cv.toarray(), y_train,
-                     epochs=2, 
-                     verbose=2,
-                     batch_size=100) 
-
-loss, accuracy = model.evaluate(X_val_cv.toarray(), y_val, verbose=2)
-print("Validation Accuracy: {:.4f}".format(accuracy))
-loss, accuracy = model.evaluate(X_train_cv.toarray(), y_train, verbose=2)
-print("Train Accuracy: {:.4f}".format(accuracy))
-
-predictions = model.predict_classes(X_val_cv.toarray())
-prediction_ = encoder.inverse_transform(predictions)
-
-true_val = []
-for i in y_val:
-    for idx, val in enumerate(i):
-        if val != 0:
-            true_val.append(idx)
-
-true_val = np.array(true_val)
-true_ = np.argmax(np_utils.to_categorical(true_val), axis = 1)
-true_ = encoder.inverse_transform(true_)
-
-np.equal(true_,prediction_).sum()
-
-conf_matrix = confusion_matrix(prediction_, true_)
-labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos','José Saramago', 'Luísa Marques Silva']
-plot_cm(conf_matrix, labels)
-
-# 500 words
-df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
-X_test500 = df_test_500['Text']
-y_test500 = df_test_500['Label']
-
-X_test_cv500 = cv.transform(X_test500)
-y_array500 = y_test500.to_numpy()
-
-predictions500 = model.predict_classes(X_test_cv500.toarray())
-prediction500_ = encoder.inverse_transform(predictions500)
-
-conf_matrix_test500 = confusion_matrix(prediction500_, y_test500)
-plot_cm(conf_matrix_test500, labels)
-
-
-# 1000 WORDS
-df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
-X_test1000 = df_test_1000['Text']
-y_test1000 = df_test_1000['Label']
-
-X_test_cv1000 = cv.transform(X_test1000)
-y_array1000 = y_test1000.to_numpy()
-
-predictions1000 = model.predict_classes(X_test_cv1000.toarray())
-prediction1000_ = encoder.inverse_transform(predictions1000)
-
-conf_matrix_test1000 = confusion_matrix(prediction1000_, y_test1000)
-plot_cm(conf_matrix_test1000, labels)
