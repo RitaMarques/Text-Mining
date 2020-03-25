@@ -9,11 +9,11 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
-#from tensorflow.keras.models import Sequential
-#from tensorflow.keras import layers
-#from keras.layers import Dense
-#from keras.wrappers.scikit_learn import KerasClassifier
-#from keras.utils import np_utils
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import layers
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from keras.utils import np_utils
 from scipy import sparse
 from sklearn import linear_model, preprocessing
 from sklearn.preprocessing import LabelEncoder
@@ -303,7 +303,7 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 #----------------------------------------------------------------------------------------------------------------
 def split(df, dummy_y=None, test_size=0.2):
     '''The dataframe has at least 2 columns named Text and Label'''
-    if dummy_y==None:
+    if dummy_y is None:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
                                                         stratify=df['Label'], shuffle=True, random_state=1)
     else:
@@ -366,7 +366,7 @@ def language_model(X_train, max_df=0.9, ngram=(1,3), langmodel="BOW", binary=Tru
 #------------------------------------------
 def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     '''Creates 4 new features and returns the dataframe with them'''
-    if testdata == None:
+    if testdata is None:
         data_idx = list(X_data.index)
 
         data_df = df.iloc[data_idx, :].copy()
@@ -574,7 +574,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
 
 
 def predict(df, cv, trymodel, model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
-            tfidf=None, testdata=None, epochs=2):
+            tfidf=None, testdata=None, epochs=2, encoder=None):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
     X_cv = cv.transform(x_data)
@@ -612,8 +612,11 @@ def predict(df, cv, trymodel, model, x_data, y_data, X_train_cv=None, y_train=No
 
     plot_cm(conf_matrix, labels)
 
-    if tfidf == None:
-        return data_predict, report, conf_matrix
+    if tfidf is None:
+        if trymodel == "MLRP":
+            return data_predict, report, conf_matrix
+        else:
+            return data_predict, report, conf_matrix
     else:
         return data_predict, report, conf_matrix, scores
 
@@ -704,13 +707,13 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features=features, tfidf=tfidf)
+                                                                features=features, tfidf=tfidf, encoder=encoder)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
-                                                        features=features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, 
+                                                        features=features, encoder=encoder)
         else:   # default to Bag of Words
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
-                                                        features=features)
+                                                         features=features, encoder=encoder)
 
     print(report)
     return cv, in_use_model, features, X_train_cv, report
@@ -754,13 +757,13 @@ sampling = True               # wether to use sampling (T) or original (F)
 multiply = 2                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = False             # wether to remove stopwords (T) or not (F)
-stemming = True              # Wether to apply a Stemmer (T) or not (F)
+stop_words = False            # wether to remove stopwords (T) or not (F)
+stemming = True               # Wether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
-binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "MLRP"           # option  "KNN,"MLRP","NN"
+binary_vec = False             # Vectorizer counts or only notes presence (T)
+modeltotest = "NN"           # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
