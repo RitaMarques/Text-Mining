@@ -613,7 +613,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
 
     plot_cm(conf_matrix, labels)
 
-    if vectorizer == None:
+    if tfidf == None:
         if trymodel == "MLRP":
             return encode_labels, data_predict, report, conf_matrix
         else:
@@ -675,42 +675,41 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features, vectorizer="tfidf")
+                                                                features=features, tfidf=tfidf)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
 
     elif trymodel == "MLRP":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="MLRP")
-        data_predict, report, conf_matrix = predict(df_cleaned, cv,trymodel, model=in_use_model, x_data=X_val, y_data=y_val,
-                                            X_train_cv=X_train_cv, y_train=y_train, features=features)
-    
+
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
                                                                 X_train_cv=X_train_cv, y_train=y_train, 
-                                                                features, vectorizer="tfidf")
+                                                                tfidf=tfidf, features=features)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model,
-                                             X_val, y_val, features, X_train_cv=X_train_cv, y_train=y_train)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                X_train_cv=X_train_cv, y_train=y_train, 
+                                                                features=features)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model,
-                                             X_val, y_val, features,X_train_cv=X_train_cv, y_train=y_train)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                                                X_train_cv=X_train_cv, y_train=y_train, 
+                                                                features=features)
 
 
     elif trymodel=="NN":
         in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="NN", dropout=dropout, loss=loss,
                                                 epochs=epochs, batch_size=batch_size)
+        print("Train Accuracy: {:.4f}".format(train_accuracy))
+
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                features, vectorizer="tfidf")
+                                                                features=features, tfidf=tfidf)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features)
-                                
-        print("Train Accuracy: {:.4f}".format(train_accuracy))
-        
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
 
     print(report)
     return cv, in_use_model, features, X_train_cv
@@ -718,12 +717,12 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modeltotest, in_use_model, features, vectorizer=None):
+def test(testset, cv, modeltotest, in_use_model, features, tfidf=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
     return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
-                   vectorizer, testdata=True)
+                   tfidf, testdata=True)
 
 
 #------------------------------------------------------------------------------------------------------------
