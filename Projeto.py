@@ -1,24 +1,21 @@
 import pandas as pd
 import numpy as np
 import os
-import nltk
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
-from nltk.stem.wordnet import WordNetLemmatizer
 from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
-from scipy import sparse
-from sklearn import linear_model
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers
-#from keras.layers import Dense
+from keras.layers import Dense
 from keras.wrappers.scikit_learn import KerasClassifier
 from keras.utils import np_utils
 from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn import preprocessing
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
@@ -83,7 +80,6 @@ def get_dataframe(basedir):
 We get the least common denominator for the number of texts for each author this will be the number of samples 
 per author, we then just have to divide this LCDM by the number of texts of the author to get the number of 
 samples to get from each text for each author'''
-
 
 def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
     """ Receives a dataframe with columns Label and Text
@@ -385,11 +381,11 @@ def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     x_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
     data_X['Words_Per_Sentence'] = [round(x, 3) for x in x_scaled]
 
-    X_sparse = sparse.csr_matrix(data_X.values)
+    #X_sparse = sparse.csr_matrix(data_X.values)
 
     features = True
 
-    return X_sparse, features
+    return data_X, features
 
 
 #------------------------------------------------------------------------------------------------------------
@@ -408,8 +404,7 @@ class Classifier(object):
 
     def train(self, X, Y, devX, devY, epochs=20):
         """
-        This trains the perceptron over a certain number of epoch and records the
-            accuracy in Train and Dev sets along each epoch.
+        This trains the perceptron over a certain number of epoch and returns the labels for the dev set.
         :param X: numpy array with size DxN where D is the number of training examples
                  and N is the number of features.
         :param Y: numpy array with size D containing the correct labels for the training set
@@ -417,49 +412,28 @@ class Classifier(object):
         :param devY (optional): same as Y but for the dev set.
         :param epochs (optional): number of epochs to run.
         """
-        #train_accuracy = [self.evaluate(X, Y)]
-        #dev_accuracy = [self.evaluate(devX, devY)]
+        le = preprocessing.LabelEncoder()
+        Y = le.fit_transform(Y)
+        devY = le.fit_transform(devY)
         for epoch in range(epochs):
             for i in tqdm(range(X.shape[0])):
                 self.update_weights(X[i, :].toarray(), Y[i])
-            #outs_eval = self.evaluate(X, Y)
-            outs_evaldev = self.evaluate(devX, devY)
-            #train_accuracy.append(outs_eval[0])
-            #dev_accuracy.append(outs_evaldev[0])
-        return outs_evaldev[1]  # train_accuracy, dev_accuracy,
-            # labels x_val
+            encode_labels = self.evaluate(devX, devY)
+            actual_labels = le.inverse_transform(encode_labels)
+        return encode_labels, actual_labels  # labels x_val
 
     def evaluate(self, X, Y):
         """
-        Evaluates the error in a given set of examples.
+        Predicts the value for each text and returns a list of labels.
         :param X: numpy array with size DxN where D is the number of examples to
                     evaluate and N is the number of features.
         :param Y: numpy array with size D containing the correct labels for the training set
         """
-        correct_predictions = 0
         labels = []
-        Y = Y.copy()
-        Y.reset_index(inplace=True, drop=True)
         for i in range(X.shape[0]):
-            y_pred = self.predict(X[i, :].toarray())
-            labels.append(self.predict(X[i, :].toarray()))
-            if Y[i] == y_pred:
-                correct_predictions += 1
-        return correct_predictions / X.shape[0], labels
-
-    def plot_train(self, train_accuracy, dev_accuracy):
-        """
-        Function to Plot the accuracy of the Training set and Dev set per epoch.
-        :param train_accuracy: list containing the accuracies of the train set.
-        :param dev_accuracy: list containing the accuracies of the dev set.
-        """
-        x_axis = [epoch + 1 for epoch in range(len(train_accuracy))]
-        plt.plot(x_axis, train_accuracy, '-g', linewidth=1, label='Train')
-        plt.xlabel("epochs")
-        plt.ylabel("Accuracy")
-        plt.plot(x_axis, dev_accuracy, 'b-', linewidth=1, label='Dev')
-        plt.legend()
-        plt.show()
+            y_pred = self.predict(X[i, :].toarray()).item()
+            labels.append(y_pred)
+        return labels
 
 class MultinomialLR(Classifier):
     """ Multinomial Logistic Regression """
@@ -505,8 +479,7 @@ def ml_algorithm(X_train_cv, y_train, KNN=True, MLR=False):
         # KNN
         #--------------------------
         # Clustering the document with KNN classifier
-        modelknn = KNeighborsClassifier(n_neighbors=7, weights='distance', algorithm='brute',
-                                                 metric='cosine')
+        modelknn = KNeighborsClassifier(n_neighbors=13, weights='distance', algorithm='brute', metric='cosine')
         modelknn.fit(X_train_cv, y_train)
 
         return modelknn
@@ -575,8 +548,8 @@ def predict(df, cv, model, x_data, y_data, X_train_cv=None, y_train=None, featur
 
         scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 
-    if model == lr:
-        data_predict = model.train(X=X_train_cv, Y=y_train, devX=x_data, devY=y_data, epochs=20)
+    if model == 'lr':
+        encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
     else:
         data_predict = model.predict(X_cv)
 
@@ -589,7 +562,10 @@ def predict(df, cv, model, x_data, y_data, X_train_cv=None, y_train=None, featur
     plot_cm(conf_matrix, labels)
 
     if vectorizer == None:
-        return data_predict, report, conf_matrix
+        if model == 'lr':
+            return encode_labels, data_predict, report, conf_matrix
+        else:
+            return data_predict, report, conf_matrix
     else:
         return data_predict, report, conf_matrix, scores
 
@@ -602,8 +578,8 @@ df_original = get_dataframe(r'./Corpora/train/')
 
 # ---- SAMPLE DATA
 #df_sampled = get_df_of_samples(df_original, multiplier=10, number_of_words=1000, balanced=False)
-df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True)
-#df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True)
+#df_sampled = get_df_of_samples(df_original, multiplier=1, number_of_words=500, balanced=True)
+df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True) # BEST CONJUGATION
 
 # ---- CLEAN DATA
 # with original data
@@ -618,18 +594,18 @@ X_train, X_val, y_train, y_val = split(df_cleaned)
 # If Bag of Words
 cv, X_train_cv = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=True, TFIDF=False, binary=True)
 # If TF-IDF
-# cv, X_train_cv, tfidf = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=False, TFIDF=True, binary=False)
+#cv, X_train_cv, tfidf = language_model(X_train, max_df=0.9, ngram=(1,3), BOW=False, TFIDF=True, binary=False)
 
 # ---- ADD EXTRA FEATURES
 features = None
 # If we want extra features, uncomment the following line
-#X_train_cv, features = extra_features(df_cleaned, X_train, cv, X_train_cv)
+X_train_cv, features = extra_features(df_cleaned, X_train, cv, X_train_cv)
 
 # ---- TRAIN MODEL
 # KNN
 modelknn = ml_algorithm(X_train_cv, y_train, KNN=True, MLR=False)
 # Multinomial Logistic Regression Perceptron
-lr = ml_algorithm(X_train_cv, y_train, KNN=False, MLR=True)
+#lr = ml_algorithm(X_train_cv, y_train, KNN=False, MLR=True)
 
 # ---- PREDICT
 # If Bag-of-Words
@@ -637,29 +613,59 @@ data_predict, report, conf_matrix = predict(df_cleaned, cv, modelknn, X_val, y_v
 # If TF-IDF
 #data_predict, report, conf_matrix, scores = predict(cv, modelknn, X_val, y_val, features, vectorizer=tfidf)
 # If Multinomial Logistic Regression Perceptron
-data_predict, report, conf_matrix = predict(df=df_cleaned, cv=cv, model=lr, x_data=X_val, y_data=y_val,
-                                            X_train_cv=X_train_cv, y_train=y_train, features=features)
+#encode_labels, data_predict, report, conf_matrix = predict(df=df_cleaned, cv=cv, model=lr, x_data=X_val, y_data=y_val,
+#                                                           X_train_cv=X_train_cv, y_train=y_train, features=features)
 
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modelknn, features, vectorizer=None):
+def test(testset, cv, model, features, vectorizer=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
-    return predict(test_cleaned, cv, modelknn, test_cleaned['Text'], test_cleaned['Label'], features,
+    if model == 'lr':
+        X_cv = cv.transform(test_cleaned['Text'])
+
+        data_predict = []
+        for i in range(X_cv.shape[0]):
+            y_pred = model.predict(X_cv[i, :].toarray()).item()
+            data_predict.append(y_pred)
+
+        le = preprocessing.LabelEncoder()
+        actual_labels = le.fit_transform(test_cleaned['Label'])
+
+        #outs_evaldev = le.inverse_transform(self.evaluate(devX, devY))
+        print("actual labels: ", actual_labels)
+        print("labels: ", data_predict)
+
+        conf_matrix = confusion_matrix(data_predict, actual_labels)
+
+        labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
+                  'José Saramago', 'Luísa Marques Silva']
+        plot_cm(conf_matrix, labels)
+
+        return data_predict
+    elif model == modelknn:
+        return predict(test_cleaned, cv, model, test_cleaned['Text'], test_cleaned['Label'], features,
                    vectorizer, testdata=True)
 
-# 500 WORDS
+
+# ---- 500 WORDS
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 
+# If model == modelknn
 data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modelknn, features)
+# If model == lr
+#data500_predict = test(df_test_500, cv, lr, features)
 
-
-# 1000 WORDS
+# ----1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 
+# If model == modelknn
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modelknn, features)
+# If model == lr
+#data1000_predict = test(df_test_1000, cv, lr, features)
+
 
 # -------------------------NEURAL NETWORK--------------------
 
