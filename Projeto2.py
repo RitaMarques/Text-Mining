@@ -9,6 +9,11 @@ from bs4 import BeautifulSoup
 from copy import deepcopy
 import unicodedata
 import re
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import layers
+from keras.layers import Dense
+from keras.wrappers.scikit_learn import KerasClassifier
+from keras.utils import np_utils
 from scipy import sparse
 from sklearn import linear_model
 from sklearn.feature_extraction.text import CountVectorizer
@@ -28,6 +33,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # conda install -c conda-forge tqdm
 # conda install -c conda-forge ipywidgets
+# conda install -c conda-forge tensorflow
 
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -382,11 +388,11 @@ def extra_features(df, X_data, cv, X_data_cv, testdata=None):
     x_scaled = min_max_scaler.fit_transform(aux).flatten().tolist()
     data_X['Words_Per_Sentence'] = [round(x, 3) for x in x_scaled]
 
-    X_sparse = sparse.csr_matrix(data_X.values)
+    #X_sparse = sparse.csr_matrix(data_X.values) 
 
     features = True
 
-    return X_sparse, features
+    return data_X, features #changed
 
 
 #------------------------------------------------------------------------------------------------------------
@@ -414,17 +420,16 @@ class Classifier(object):
         :param devY (optional): same as Y but for the dev set.
         :param epochs (optional): number of epochs to run.
         """
-        #train_accuracy = [self.evaluate(X, Y)]
-        #dev_accuracy = [self.evaluate(devX, devY)]
+        le = preprocessing.LabelEncoder()
+        Y = le.fit_transform(Y)
+        devY = le.fit_transform(devY)
         for epoch in range(epochs):
             for i in tqdm(range(X.shape[0])):
                 self.update_weights(X[i, :].toarray(), Y[i])
-            #outs_eval = self.evaluate(X, Y)
-            outs_evaldev = self.evaluate(devX, devY)
-            #train_accuracy.append(outs_eval[0])
-            #dev_accuracy.append(outs_evaldev[0])
-        return outs_evaldev[1]  # train_accuracy, dev_accuracy,
-            # labels x_val
+            encode_labels = self.evaluate(devX, devY)
+            actual_labels = le.inverse_transform(encode_labels)
+        return encode_labels, actual_labels  # labels x_val
+
 
     def evaluate(self, X, Y):
         """
@@ -433,30 +438,12 @@ class Classifier(object):
                     evaluate and N is the number of features.
         :param Y: numpy array with size D containing the correct labels for the training set
         """
-        correct_predictions = 0
         labels = []
-        Y = Y.copy()
-        Y.reset_index(inplace=True, drop=True)
         for i in range(X.shape[0]):
-            y_pred = self.predict(X[i, :].toarray())
-            labels.append(self.predict(X[i, :].toarray()))
-            if Y[i] == y_pred:
-                correct_predictions += 1
-        return correct_predictions / X.shape[0], labels
+            y_pred = self.predict(X[i, :].toarray()).item()
+            labels.append(y_pred)
+        return labels
 
-    def plot_train(self, train_accuracy, dev_accuracy):
-        """
-        Function to Plot the accuracy of the Training set and Dev set per epoch.
-        :param train_accuracy: list containing the accuracies of the train set.
-        :param dev_accuracy: list containing the accuracies of the dev set.
-        """
-        x_axis = [epoch + 1 for epoch in range(len(train_accuracy))]
-        plt.plot(x_axis, train_accuracy, '-g', linewidth=1, label='Train')
-        plt.xlabel("epochs")
-        plt.ylabel("Accuracy")
-        plt.plot(x_axis, dev_accuracy, 'b-', linewidth=1, label='Dev')
-        plt.legend()
-        plt.show()
 
 class MultinomialLR(Classifier):
     """ Multinomial Logistic Regression """
@@ -582,7 +569,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
         scores = extract_feature_scores(feature_names, tf_idf_vector.toarray())[:30]
 
     if trymodel == "MLRP":
-        data_predict = model.train(X=X_train_cv, Y=y_train, devX=x_data, devY=y_data, epochs=20)
+        encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
     elif trymodel=="KNN": 
         data_predict = model.predict(X_cv)
     else:  #default to KNN, expandable to newmodels
@@ -597,7 +584,10 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
     plot_cm(conf_matrix, labels)
 
     if vectorizer == None:
-        return data_predict, report, conf_matrix
+        if trymodel == "MLRP":
+            return encode_labels, data_predict, report, conf_matrix
+        else:
+            return data_predict, report, conf_matrix
     else:
         return data_predict, report, conf_matrix, scores
 
@@ -616,10 +606,10 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
 # ---- SAMPLE AND CLEAN
     if sampled:
         
-        df_sampled = get_df_of_samples(df_original, multiplier=3, number_of_words=words, balanced=balanced)
-        df_cleaned = clean(df_sampled, stopwords_bol=stopwords, stemmer_bol=stemmer)
+        df_sampled = get_df_of_samples(df_original, multiply, words, balanced)
+        df_cleaned = clean(df_sampled, stopwords, stemmer)
     else:
-        df_cleaned = clean(df_original, stopwords_bol=stopwords, stemmer_bol=stemmer)
+        df_cleaned = clean(df_original, stopwords, stemmer)
 
 
 # ---- SPLIT DATA
@@ -643,7 +633,7 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
 # ---- TRAIN MODEL & PREDICT
     if trymodel=="KNN":
 
-        in_use_model = ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=5)
+        in_use_model = ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
         if langmodel=="TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv,trymodel, in_use_model, X_val, y_val, features, vectorizer="tfidf")
 
@@ -664,11 +654,11 @@ def run_pipeline(sampled,multiply,words,balanced=True,stopwords=True,stemmer=Fal
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modelknn, features, vectorizer=None):
+def test(testset, cv, modeltotest, in_use_model, features, vectorizer=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
-    return predict(test_cleaned, cv, modelknn, test_cleaned['Text'], test_cleaned['Label'], features,
+    return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
                    vectorizer, testdata=True)
 
 ##################################################
@@ -691,11 +681,12 @@ binary_vec=True             #Vectorizer counts or only notes presence (T)
 cv, in_use_model, features, X_train_cv= run_pipeline(sampling,multiply=5,words=500, balanced=balancing,     #sampling
                stopwords=stop_words,stemmer=stemming,                                                    #processing
                max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,                  #language model     
-               trymodel=modeltotest,neighbors=5                                                 #ml model           
+               trymodel=modeltotest,neighbors=7                                                 #ml model           
                 )
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features)
 
+# 1000 WORDS
 cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
                 stopwords=stop_words,stemmer=stemming,                                
                 max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,        
@@ -706,3 +697,112 @@ df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features)
 
 
+###################################### NEURAL NETWORK-############################33
+
+df_original = get_dataframe(r'./Corpora/train/')
+
+# ---- SAMPLE DATA
+df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, balanced=True)
+
+# ---- CLEAN DATA
+# with original data
+#df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
+# with sampled data
+df_cleaned = clean(df_sampled, stopwords_bol=True, stemmer_bol=True)
+
+# get unique classes
+y=df_cleaned.Label
+X = df_cleaned['Text']
+# encode class values as integers
+encoder = LabelEncoder()
+encoder.fit(y)
+encoded_Y = encoder.transform(y)
+# convert integers to dummy variables (i.e. one hot encoded)
+dummy_y = np_utils.to_categorical(encoded_Y)
+dummy_y
+# ---- SPLIT DATA
+X_train, X_val, y_train, y_val = train_test_split(X, dummy_y, test_size=0.2,
+                                                      stratify=dummy_y, shuffle=True, random_state=1)
+
+cv = CountVectorizer(
+            max_df=0.9,
+            #max_features=10000,
+            ngram_range=(1,3), #(1,3)
+            binary=True# only 0 and 1 for each word
+        )
+
+X_train_cv = cv.fit_transform(X_train)
+X_val_cv = cv.transform(X_val)
+
+#from keras.optimizers import SGD
+
+input_dim = X_train_cv.shape[1]  # Number of features
+
+# create model
+model = Sequential()
+model.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+model.add(layers.Dropout(0.5))
+model.add(layers.Dense(6, activation='softmax'))
+# Compile model
+#sgd = SGD(lr=0.1, momentum=0.9)
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+model.summary()
+
+history = model.fit(X_train_cv.toarray(), y_train,
+                     epochs=2, 
+                     verbose=2,
+                     batch_size=100) 
+
+loss, accuracy = model.evaluate(X_val_cv.toarray(), y_val, verbose=2)
+print("Validation Accuracy: {:.4f}".format(accuracy))
+loss, accuracy = model.evaluate(X_train_cv.toarray(), y_train, verbose=2)
+print("Train Accuracy: {:.4f}".format(accuracy))
+
+predictions = model.predict_classes(X_val_cv.toarray())
+prediction_ = encoder.inverse_transform(predictions)
+
+true_val = []
+for i in y_val:
+    for idx, val in enumerate(i):
+        if val != 0:
+            true_val.append(idx)
+
+true_val = np.array(true_val)
+true_ = np.argmax(np_utils.to_categorical(true_val), axis = 1)
+true_ = encoder.inverse_transform(true_)
+
+np.equal(true_,prediction_).sum()
+
+conf_matrix = confusion_matrix(prediction_, true_)
+labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos','José Saramago', 'Luísa Marques Silva']
+plot_cm(conf_matrix, labels)
+
+# 500 words
+df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
+X_test500 = df_test_500['Text']
+y_test500 = df_test_500['Label']
+
+X_test_cv500 = cv.transform(X_test500)
+y_array500 = y_test500.to_numpy()
+
+predictions500 = model.predict_classes(X_test_cv500.toarray())
+prediction500_ = encoder.inverse_transform(predictions500)
+
+conf_matrix_test500 = confusion_matrix(prediction500_, y_test500)
+plot_cm(conf_matrix_test500, labels)
+
+
+# 1000 WORDS
+df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
+X_test1000 = df_test_1000['Text']
+y_test1000 = df_test_1000['Label']
+
+X_test_cv1000 = cv.transform(X_test1000)
+y_array1000 = y_test1000.to_numpy()
+
+predictions1000 = model.predict_classes(X_test_cv1000.toarray())
+prediction1000_ = encoder.inverse_transform(predictions1000)
+
+conf_matrix_test1000 = confusion_matrix(prediction1000_, y_test1000)
+plot_cm(conf_matrix_test1000, labels)
