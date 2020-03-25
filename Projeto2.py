@@ -33,7 +33,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # conda install -c conda-forge tqdm
 # conda install -c conda-forge ipywidgets
-# conda install -c conda-forge tensorflow
+# pip install keras
+# pip install tensorflow
 
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -239,13 +240,10 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
                     # replaces the ' with APOSTROPHE: dAPOSTROPHEangustia
                 #word = re.sub("\'", 'APOSTROPHE', word)
                     # cuts the ' and adds a feature APOSTROPHE
-                word = re.sub("\'", '', word) # em conjunto com o de baixo
-                word = word + " APOSTROPHE" # caso o de cima aconteça
+                word = re.sub("\'", '', word)  # em conjunto com o de baixo
+                word = word + " APOSTROPHE"  # caso o de cima aconteça
             sentence.append(normalize(word))
         df.iloc[idx, 1] = ' '.join(word for word in sentence)
-
-    # re.split(r"\s+", text)                     SPLITTING A STRING WITH MULTIPLE SPACES
-    # re.sub(r"\s+[a-zA-Z]\s+", " ", text)       REMOVING A SINGLE CHARACTER
 
     # replace ! and ? with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
@@ -519,7 +517,7 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
 
         # Fit model
         modelnn.fit(X_train_cv.toarray(), y_train,
-                     epochs=epochs, 
+                     epochs=epochs,
                      verbose=2,
                      batch_size=batch_size)
         # Get train accuracy
@@ -753,27 +751,27 @@ def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming,
 # DEFINE HYPOTHESES PIPELINE: Define model conditions - can be changed in each model or set defaults
 #------------------------------------------------------------------------------------------------------------
 
-sampling = True               # wether to use sampling (T) or original (F)
-multiply = 2                  # multipler on sampling
+sampling = True               # whether to use sampling (T) or original (F)
+multiply = 1                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = False            # wether to remove stopwords (T) or not (F)
-stemming = True               # Wether to apply a Stemmer (T) or not (F)
+stop_words = True             # whether to remove stopwords (T) or not (F)
+stemming = True               # whether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
-binary_vec = False            # Vectorizer counts or only notes presence (T)
-modeltotest = "NN"            # option  "KNN,"MLRP","NN"
+binary_vec = True             # Vectorizer counts or only notes presence (T)
+modeltotest = "MLRP"          # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
-epochs = 2                    # for NN or MLRP on modeltotest
+epochs = 1                    # for NN or MLRP on modeltotest
 batch = 100                   # for NN on modeltotest
-features = None               # wether to add the extra features to train the model
+features = False               # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
-    stopwords=stop_words, stemmer=stemming,                                      # clean
+    stopwords=stop_words, stemmer=stemming, features=features,                    # clean
     max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
     trymodel=modeltotest, neighbors=neighbors,                                   # machine learning algorithm
     dropout=dropout, loss=loss, epochs=epochs, batch_size=batch)                 # machine learning algorithm
