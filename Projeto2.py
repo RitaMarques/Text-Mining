@@ -651,6 +651,8 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
         encoded_Y = encoder.transform(df_cleaned.Label)
         # convert integers to dummy variables 
         dummy_y = np_utils.to_categorical(encoded_Y)
+    else:
+        encoder = None # to always return an encoder, even if empty
 
 # ---- SPLIT DATA
     if trymodel != "NN":
@@ -719,13 +721,15 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
                                                          features=features, encoder=encoder)
 
+
     print(report)
-    return cv, in_use_model, features, X_train_cv, report
+    return cv, in_use_model, features, X_train_cv, report, encoder
+
 
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming, tfidf=None):
+def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming, tfidf=None, encoder=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
@@ -749,8 +753,12 @@ def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming,
 
         return data_predict, report, conf_matrix
     elif modeltotest == 'KNN':
-        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
-                   tfidf, testdata=True)
+        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'],
+                   tfidf=tfidf, features=features, testdata=True)
+
+    elif modeltotest == 'NN':
+        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'],
+            features=features, tfidf=tfidf, testdata=True, encoder=encoder)
 
 
 #------------------------------------------------------------------------------------------------------------
@@ -775,7 +783,7 @@ epochs = 1                    # for NN or MLRP on modeltotest
 batch = 100                   # for NN on modeltotest
 features = False               # whether to add the extra features to train the model
 
-cv, in_use_model, features, X_train_cv, report = run_pipeline(
+cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
     stopwords=stop_words, stemmer=stemming, features=features,                    # clean
     max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
@@ -793,7 +801,7 @@ cv, in_use_model, features, X_train_cv, report = run_pipeline(
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
 
 data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features, stop_words,
-                                                  stemming, tfidf=None)
+                                                  stemming, tfidf=None, encoder=encoder_nn)
 
 # 1000 WORDS
 #cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
@@ -804,4 +812,4 @@ data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, 
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
 data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features, stop_words,
-                                                  stemming, tfidf=None)
+                                                  stemming, tfidf=None, encoder=encoder_nn)
