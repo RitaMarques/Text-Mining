@@ -509,10 +509,16 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
         input_dim = X_train_cv.shape[1] 
         print(X_train_cv.shape)
         # Create model
-        modelnn = Sequential()
-        modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
-        modelnn.add(layers.Dropout(dropout))
-        modelnn.add(layers.Dense(6, activation='softmax'))
+        if dropout is not None:
+            modelnn = Sequential()
+            modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+            modelnn.add(layers.Dropout(dropout))
+            modelnn.add(layers.Dense(6, activation='softmax'))
+
+        else:
+            modelnn = Sequential()
+            modelnn.add(layers.Dense(10, input_dim=input_dim, activation='relu'))
+            modelnn.add(layers.Dense(6, activation='softmax'))
 
         # Compile model
         modelnn.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
@@ -739,7 +745,7 @@ stemming = True               # Wether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
-binary_vec = False            # Vectorizer counts or only notes presence (T)
+binary_vec = True             # Vectorizer counts or only notes presence (T)
 modeltotest = "NN"            # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest

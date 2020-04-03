@@ -678,7 +678,7 @@ df_sampled = get_df_of_samples(df_original, multiplier=2, number_of_words=1000, 
 # with original data
 #df_cleaned = clean(df_original, stopwords_bol=False, stemmer_bol=True)
 # with sampled data
-df_cleaned = clean(df_sampled, stopwords_bol=False, stemmer_bol=True)
+df_cleaned = clean(df_sampled, stopwords_bol=False, stemmer_bol=False)
 
 # get unique classes
 y=df_cleaned.Label
@@ -693,7 +693,8 @@ dummy_y
 # ---- SPLIT DATA
 X_train, X_val, y_train, y_val = train_test_split(X, dummy_y, test_size=0.2,
                                                       stratify=dummy_y, shuffle=True, random_state=1)
-
+type([np.where(elem==1)[0][0] for elem in y_val])
+y_val
 cv = CountVectorizer(
             max_df=0.9,
             #max_features=10000,
@@ -746,7 +747,7 @@ for i in y_val:
     for idx, val in enumerate(i):
         if val != 0:
             true_val.append(idx)
-
+true_val
 true_val = np.array(true_val)
 true_ = np.argmax(np_utils.to_categorical(true_val), axis = 1)
 true_ = encoder.inverse_transform(true_)
