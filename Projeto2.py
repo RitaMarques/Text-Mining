@@ -33,7 +33,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # conda install -c conda-forge tqdm
 # conda install -c conda-forge ipywidgets
-# conda install -c conda-forge tensorflow
+# pip install keras
+# pip install tensorflow
 
 #----------------------------------------------------------------------------------------------------------------
 # IMPORT TRAIN FILES
@@ -239,13 +240,10 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
                     # replaces the ' with APOSTROPHE: dAPOSTROPHEangustia
                 #word = re.sub("\'", 'APOSTROPHE', word)
                     # cuts the ' and adds a feature APOSTROPHE
-                word = re.sub("\'", '', word) # em conjunto com o de baixo
-                word = word + " APOSTROPHE" # caso o de cima aconteça
+                word = re.sub("\'", '', word)  # em conjunto com o de baixo
+                word = word + " APOSTROPHE"  # caso o de cima aconteça
             sentence.append(normalize(word))
         df.iloc[idx, 1] = ' '.join(word for word in sentence)
-
-    # re.split(r"\s+", text)                     SPLITTING A STRING WITH MULTIPLE SPACES
-    # re.sub(r"\s+[a-zA-Z]\s+", " ", text)       REMOVING A SINGLE CHARACTER
 
     # replace ! and ? with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
@@ -405,7 +403,7 @@ class Classifier(object):
         self.parameters = np.zeros((input_size + 1, n_classes))  # input_size +1 to include the Bias term
 
     def train(self, X, Y, devX, devY, epochs=20):
-        """
+        """model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
         This trains the perceptron over a certain number of epoch and records the
             accuracy in Train and Dev sets along each epoch.
         :param X: numpy array with size DxN where D is the number of training examples
@@ -415,7 +413,7 @@ class Classifier(object):
         :param devY (optional): same as Y but for the dev set.
         :param epochs (optional): number of epochs to run.
         """
-        le = preprocessing.LabelEncoder()
+        le = LabelEncoder()
         Y = le.fit_transform(Y)
         devY = le.fit_transform(devY)
         for epoch in range(epochs):
@@ -423,7 +421,7 @@ class Classifier(object):
                 self.update_weights(X[i, :].toarray(), Y[i])
             encode_labels = self.evaluate(devX, devY)
             actual_labels = le.inverse_transform(encode_labels)
-        return encode_labels, actual_labels  # labels x_val
+        return actual_labels  # labels x_val
 
 
     def evaluate(self, X, Y):
@@ -525,7 +523,7 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
 
         # Fit model
         modelnn.fit(X_train_cv.toarray(), y_train,
-                     epochs=epochs, 
+                     epochs=epochs,
                      verbose=2,
                      batch_size=batch_size)
         # Get train accuracy
@@ -579,7 +577,7 @@ def plot_cm(confusion_matrix: np.array, classnames: list):
     return plt.show()
 
 
-def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
+def predict(df, cv, trymodel, model, x_data, y_data, X_train_cv=None, y_train=None, features=None,
             tfidf=None, testdata=None, epochs=2, encoder=None):
     """Function that transforms the data that we want to predict, does the final predictions according to the model
     chosen and returns the predictions, the classification measures and the confusion matrix """
@@ -596,7 +594,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
         scores = extract_feature_scores(feature_names, X_cv.toarray())[:30]
 
     if trymodel == "MLRP":
-        encode_labels, data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=2)
+        data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=epochs)
     elif trymodel=="KNN": 
         data_predict = model.predict(X_cv)
     elif trymodel == "NN":
@@ -607,7 +605,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
         y_data = np.argmax(np_utils.to_categorical(y_data), axis = 1)
         y_data = encoder.inverse_transform(y_data)
         
-    else:  #default to KNN, expandable to newmodels
+    else:  # default to KNN, expandable to new models
         data_predict = model.predict(X_cv)
 
     report = classification_report(data_predict, y_data)
@@ -620,7 +618,7 @@ def predict(df, cv, trymodel,model, x_data, y_data, X_train_cv=None, y_train=Non
 
     if tfidf is None:
         if trymodel == "MLRP":
-            return encode_labels, data_predict, report, conf_matrix
+            return data_predict, report, conf_matrix
         else:
             return data_predict, report, conf_matrix
     else:
@@ -646,7 +644,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
         df_cleaned = clean(df_original, stopwords, stemmer)
 
 # ---- LABEL ENCODER (for NN)
-    if trymodel=="NN":
+    if trymodel == "NN":
         # encode class values as integers
         encoder = LabelEncoder()
         encoder.fit(df_cleaned.Label)
@@ -655,15 +653,15 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
         dummy_y = np_utils.to_categorical(encoded_Y)
 
 # ---- SPLIT DATA
-    if trymodel!="NN":
+    if trymodel != "NN":
         X_train, X_val, y_train, y_val = split(df_cleaned)
     else:
         X_train, X_val, y_train, y_val = split(df_cleaned, dummy_y)
 
 # ---- CHOOSE LANGUAGE MODEL
-    if langmodel=="TFIDF":
+    if langmodel == "TFIDF":
          cv, X_train_cv, tfidf = language_model(X_train, max_df, ngram, langmodel, binary)
-    elif langmodel=="BOW": #Bag of Words
+    elif langmodel == "BOW": # Bag of Words
         cv, X_train_cv = language_model(X_train, max_df, ngram, langmodel, binary)
 
 
@@ -682,30 +680,33 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
                                                                 features=features, tfidf=tfidf)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
+                                                        features=features)
         else:   # default to Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, features=features)
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
+                                                        features=features)
 
     elif trymodel == "MLRP":
         in_use_model = ml_algorithm(X_train_cv, y_train, model="MLRP")
 
         if langmodel == "TFIDF":
-            encode_labels, data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                X_train_cv=X_train_cv, y_train=y_train, 
-                                                                tfidf=tfidf, features=features)
+            data_predict, report, conf_matrix, scores = predict(
+                                    df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                    X_train_cv=X_train_cv, y_train=y_train, tfidf=tfidf,
+                                    features=features, epochs=epochs)
         elif langmodel == "BOW":  # Bag of Words
-            encode_labels, data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                X_train_cv=X_train_cv, y_train=y_train, 
-                                                                features=features)
+            data_predict, report, conf_matrix = predict(
+                                    df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                    X_train_cv=X_train_cv, y_train=y_train, features=features, epochs=epochs)
         else:   # default to Bag of Words
-            encode_labels, data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
-                                                                X_train_cv=X_train_cv, y_train=y_train, 
-                                                                features=features)
+            data_predict, report, conf_matrix = predict(
+                                    df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
+                                    X_train_cv=X_train_cv, y_train=y_train, features=features, epochs=epochs)
 
 
-    elif trymodel=="NN":
+    elif trymodel == "NN":
         in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="NN", dropout=dropout, loss=loss,
-                                                epochs=epochs, batch_size=batch_size)
+                                                    epochs=epochs, batch_size=batch_size)
         print("Train Accuracy: {:.4f}".format(train_accuracy))
 
         if langmodel == "TFIDF":
@@ -724,11 +725,31 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 #------------------------------------------------------------------------------------------------------------
 # TEST FILES
 #------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modeltotest, in_use_model, features, tfidf=None):
+def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming, tfidf=None):
     """Function that predicts our test data"""
     test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
 
-    return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
+    if modeltotest == 'MLRP':
+        X_cv = cv.transform(test_cleaned['Text'])
+
+        data_predict = []
+        for i in range(X_cv.shape[0]):
+            y_pred = in_use_model.predict(X_cv[i, :].toarray()).item()
+            data_predict.append(y_pred)
+
+        le = preprocessing.LabelEncoder()
+        actual_labels = le.fit_transform(test_cleaned['Label'])
+
+        report = classification_report(data_predict, actual_labels)
+        conf_matrix = confusion_matrix(data_predict, actual_labels)
+
+        labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
+                  'José Saramago', 'Luísa Marques Silva']
+        plot_cm(conf_matrix, labels)
+
+        return data_predict, report, conf_matrix
+    elif modeltotest == 'KNN':
+        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'], features,
                    tfidf, testdata=True)
 
 
@@ -736,12 +757,12 @@ def test(testset, cv, modeltotest, in_use_model, features, tfidf=None):
 # DEFINE HYPOTHESES PIPELINE: Define model conditions - can be changed in each model or set defaults
 #------------------------------------------------------------------------------------------------------------
 
-sampling = True               # wether to use sampling (T) or original (F)
-multiply = 2                  # multipler on sampling
+sampling = True               # whether to use sampling (T) or original (F)
+multiply = 1                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = False            # wether to remove stopwords (T) or not (F)
-stemming = True               # Wether to apply a Stemmer (T) or not (F)
+stop_words = True             # whether to remove stopwords (T) or not (F)
+stemming = True               # whether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
@@ -750,13 +771,13 @@ modeltotest = "NN"            # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
-epochs = 2                    # for NN or MLRP on modeltotest
+epochs = 1                    # for NN or MLRP on modeltotest
 batch = 100                   # for NN on modeltotest
-features = None               # wether to add the extra features to train the model
+features = False               # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
-    stopwords=stop_words, stemmer=stemming,                                      # clean
+    stopwords=stop_words, stemmer=stemming, features=features,                    # clean
     max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
     trymodel=modeltotest, neighbors=neighbors,                                   # machine learning algorithm
     dropout=dropout, loss=loss, epochs=epochs, batch_size=batch)                 # machine learning algorithm
@@ -770,7 +791,9 @@ cv, in_use_model, features, X_train_cv, report = run_pipeline(
 #               trymodel=modeltotest,neighbors=7                                                 # ml model
 #                )
 df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
-data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features)
+
+data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features, stop_words,
+                                                  stemming, tfidf=None)
 
 # 1000 WORDS
 #cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
@@ -780,4 +803,5 @@ data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, 
 #                )
 # 1000 WORDS
 df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
-data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features)
+data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features, stop_words,
+                                                  stemming, tfidf=None)
