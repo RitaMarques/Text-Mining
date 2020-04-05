@@ -775,19 +775,19 @@ sampling = True               # whether to use sampling (T) or original (F)
 multiply = 2                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = False             # whether to remove stopwords (T) or not (F)
-stemming = False               # whether to apply a Stemmer (T) or not (F)
+stop_words = False            # whether to remove stopwords (T) or not (F)
+stemming = False              # whether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
 binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "KNN"            # option  "KNN,"MLRP","NN"
+modeltotest = "KNN"           # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
 epochs = 1                    # for NN or MLRP on modeltotest
 batch = 100                   # for NN on modeltotest
-features = True               # whether to add the extra features to train the model
+features = False              # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
