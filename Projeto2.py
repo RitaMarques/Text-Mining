@@ -30,6 +30,7 @@ import functools
 import warnings
 from tqdm import tqdm_notebook as tqdm
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+%matplotlib inline
 
 # conda install -c conda-forge tqdm
 # conda install -c conda-forge ipywidgets
@@ -304,6 +305,7 @@ def split(df, dummy_y=None, test_size=0.2):
     if dummy_y is None:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
                                                         stratify=df['Label'], shuffle=True, random_state=1)
+                                                        
     else:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], dummy_y, test_size=test_size,
                                                         stratify=dummy_y, shuffle=True, random_state=1)
@@ -485,8 +487,12 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
         # Classifying with KNN
         modelknn = KNeighborsClassifier(n_neighbors=neighbors, weights='distance', algorithm='brute', metric='cosine')
         modelknn.fit(X_train_cv, y_train)
+        # Get train accuracy
+        train_predict = modelknn.predict(X_train_cv)
+        conf_matrix_train = confusion_matrix(train_predict, y_train)
+        accuracy_train = round(sum(np.diagonal(conf_matrix_train))/conf_matrix_train.sum(),3)
 
-        return modelknn
+        return modelknn, accuracy_train
 
     elif model == "MLRP":
         #--------------------------------------------
@@ -676,7 +682,9 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
 # ---- TRAIN MODEL & PREDICT
     if trymodel == "KNN":
-        in_use_model = ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
+        in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
+        
+        print("Train accuracy: {}".format(train_accuracy))
 
         if langmodel == "TFIDF":
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
@@ -721,7 +729,6 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
                                                          features=features, encoder=encoder)
 
-
     print(report)
     return cv, in_use_model, features, X_train_cv, report, encoder
 
@@ -760,32 +767,31 @@ def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming,
         return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'],
             features=features, tfidf=tfidf, testdata=True, encoder=encoder)
 
-
 #------------------------------------------------------------------------------------------------------------
 # DEFINE HYPOTHESES PIPELINE: Define model conditions - can be changed in each model or set defaults
 #------------------------------------------------------------------------------------------------------------
 
 sampling = True               # whether to use sampling (T) or original (F)
-multiply = 1                  # multipler on sampling
+multiply = 2                  # multipler on sampling
 words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
-stop_words = True             # whether to remove stopwords (T) or not (F)
-stemming = True               # whether to apply a Stemmer (T) or not (F)
+stop_words = False             # whether to remove stopwords (T) or not (F)
+stemming = False               # whether to apply a Stemmer (T) or not (F)
 langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
 binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "NN"            # option  "KNN,"MLRP","NN"
+modeltotest = "KNN"            # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
 epochs = 1                    # for NN or MLRP on modeltotest
 batch = 100                   # for NN on modeltotest
-features = False               # whether to add the extra features to train the model
+features = True               # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
     sampled=sampling, multiply=multiply, words=words, balanced=balancing,        # sampling
-    stopwords=stop_words, stemmer=stemming, features=features,                    # clean
+    stopwords=stop_words, stemmer=stemming, features=features,                   # clean
     max_df=max_df, ngram=ngram, langmodel=langmodeltotest, binary=binary_vec,    # language modelling
     trymodel=modeltotest, neighbors=neighbors,                                   # machine learning algorithm
     dropout=dropout, loss=loss, epochs=epochs, batch_size=batch)                 # machine learning algorithm
