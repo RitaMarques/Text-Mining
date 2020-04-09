@@ -733,39 +733,6 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
     return cv, in_use_model, features, X_train_cv, report, encoder
 
 
-#------------------------------------------------------------------------------------------------------------
-# TEST FILES
-#------------------------------------------------------------------------------------------------------------
-def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming, tfidf=None, encoder=None):
-    """Function that predicts our test data"""
-    test_cleaned = clean(testset, stopwords_bol=False, stemmer_bol=False)
-
-    if modeltotest == 'MLRP':
-        X_cv = cv.transform(test_cleaned['Text'])
-
-        data_predict = []
-        for i in range(X_cv.shape[0]):
-            y_pred = in_use_model.predict(X_cv[i, :].toarray()).item()
-            data_predict.append(y_pred)
-
-        le = preprocessing.LabelEncoder()
-        actual_labels = le.fit_transform(test_cleaned['Label'])
-
-        report = classification_report(data_predict, actual_labels)
-        conf_matrix = confusion_matrix(data_predict, actual_labels)
-
-        labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
-                  'José Saramago', 'Luísa Marques Silva']
-        plot_cm(conf_matrix, labels)
-
-        return data_predict, report, conf_matrix
-    elif modeltotest == 'KNN':
-        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'],
-                   tfidf=tfidf, features=features, testdata=True)
-
-    elif modeltotest == 'NN':
-        return predict(test_cleaned, cv, modeltotest, in_use_model, test_cleaned['Text'], test_cleaned['Label'],
-            features=features, tfidf=tfidf, testdata=True, encoder=encoder)
 
 #------------------------------------------------------------------------------------------------------------
 # DEFINE HYPOTHESES PIPELINE: Define model conditions - can be changed in each model or set defaults
@@ -797,25 +764,27 @@ cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
     dropout=dropout, loss=loss, epochs=epochs, batch_size=batch)                 # machine learning algorithm
 
 
+#------------------------------------------------------------------------------------------------------------
+# PREDICT TEST FILES AUTHORS
+#------------------------------------------------------------------------------------------------------------
 
-# 500 WORDS
-#cv, in_use_model, features, X_train_cv= run_pipeline(sampling,multiply=5,words=500, balanced=balancing,     #sampling
-#               stopwords=stop_words, stemmer=stemming,                                                    #processing
-#               max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,                  #language model
-#               trymodel=modeltotest,neighbors=7                                                 # ml model
-#                )
-df_test_500 = get_dataframe(r'./Corpora/test-IMPORT/500Palavras/')
+text500 = import_folder_files(r'./Corpora/test',r'/500Palavras/')
+text_names500 = ["text1_500","text2_500","text3_500","text4_500","text5_500","text6_500"]
+df_test500 = pd.DataFrame(list(zip(text_names500,text500)), columns=["TextName","Text"])
 
-data500_predict, report500, conf_matrix500 = test(df_test_500, cv, modeltotest, in_use_model, features, stop_words,
-                                                  stemming, tfidf=None, encoder=encoder_nn)
+text1000 = import_folder_files(r'./Corpora/test',r'/1000Palavras/')
+text_names1000 = ["text1_1000","text2_1000","text3_1000","text4_1000","text5_1000","text6_1000"]
+df_test1000 = pd.DataFrame(list(zip(text_names1000,text1000)), columns=["TextName","Text"])
+df_test_final_pred = pd.concat([df_test500, df_test1000]).reset_index(drop=True)
 
-# 1000 WORDS
-#cv, in_use_model, features, X_train_cv= run_pipeline(sampled=sampling,multiply=3,words=1000,balanced=balancing,
-#                stopwords=stop_words,stemmer=stemming,
-#                max_df=max_df, ngram=ngram,langmodel=langmodeltotest, binary=binary_vec,
-#                trymodel=modeltotest, neighbors=5
-#                )
-# 1000 WORDS
-df_test_1000 = get_dataframe(r'./Corpora/test-IMPORT/1000Palavras/')
-data1000_predict, report1000, conf_matrix1000 = test(df_test_1000, cv, modeltotest, in_use_model, features, stop_words,
-                                                  stemming, tfidf=None, encoder=encoder_nn)
+# Apply clean function
+df_cleaned_test = clean(df_test_final_pred, stop_words, stemming)
+
+# Using BOW (language model chosen)
+X_test_cv = cv.transform(df_cleaned_test['Text'])
+
+# Predict labels (using the final chosen model)
+test_predict = in_use_model.predict(X_test_cv)
+
+# Final predicted labels
+df_test_final_pred['Predicted labels'] = list(test_predict)
