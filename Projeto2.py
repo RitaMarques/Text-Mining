@@ -736,7 +736,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 
 sampling = True               # whether to use sampling (T) or original (F)
 multiply = 2                  # multiplier on sampling
-words = 50                   # number of words per sample text
+words = 1000                  # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
 stop_words = False            # whether to remove stopwords (T) or not (F)
 stemming = False              # whether to apply a Stemmer (T) or not (F)
@@ -744,12 +744,12 @@ langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
 binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "NN"            # option  "KNN,"MLRP","NN"
+modeltotest = "KNN"           # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
 epochs = 2                    # for NN or MLRP on modeltotest
-batch = 10                   # for NN on modeltotest
+batch = 10                    # for NN on modeltotest
 features = False              # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
@@ -788,18 +788,3 @@ test_predict = encoder_nn.inverse_transform(test_predict)
 
 # Final predicted labels
 df_test_final_pred['Predicted labels'] = list(test_predict)
-
-#---------------------------------
-# DELETE
-# Check performance on test set
-#---------------------------------
-true_labels = ["José Saramago", "Almada Negreiros", "Luísa Marques Silva", "Eça de Queiros", "Camilo Castelo Branco", "José Rodrigues dos Santos",
-    "José Saramago", "Almada Negreiros", "Luísa Marques Silva", "Eça de Queiros", "Camilo Castelo Branco", "José Rodrigues dos Santos"]
-
-existing_labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
-              'José Saramago', 'Luísa Marques Silva']
-
-conf_matrix = confusion_matrix(list(test_predict), true_labels)
-report = classification_report(test_predict, true_labels)
-plot_cm(conf_matrix, existing_labels)
-print(report)
