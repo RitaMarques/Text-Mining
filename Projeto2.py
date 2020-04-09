@@ -784,7 +784,7 @@ df_cleaned_test = clean(df_test_final_pred, stop_words, stemming)
 X_test_cv = cv.transform(df_cleaned_test['Text'])
 
 # Predict labels (using the final chosen model)
-test_predict = in_use_model.predict(X_test_cv)
+#test_predict = in_use_model.predict(X_test_cv)
 
 # IF NN don't run above line, run following two
 test_predict = in_use_model.predict_classes(X_test_cv.toarray())
