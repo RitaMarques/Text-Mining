@@ -30,7 +30,7 @@ import functools
 import warnings
 from tqdm import tqdm_notebook as tqdm
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-%matplotlib inline
+#%matplotlib inline
 
 # conda install -c conda-forge tqdm
 # conda install -c conda-forge ipywidgets
@@ -99,7 +99,7 @@ def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
     # We use the greatest common divisor to get the least common denominator:
     def gcd(a, b):
         """Return greatest common divisor using Euclid's Algorithm."""
-        while b:      
+        while b:
             a, b = b, a % b
         return a
 
@@ -109,7 +109,7 @@ def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
 
     # we do it iteratively for each element in the list
     def lcmm(*args):
-        """Return lcm of args."""   
+        """Return lcm of args."""
         return functools.reduce(lcm, args)
 
     denom = lcmm(*uniquecount)
@@ -121,7 +121,7 @@ def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
 
     # Now we start to build our samples dataframe
     df_samples = pd.DataFrame(columns=['Label', 'Text'])
-    
+
     def get_sample(words, sizeofsample):
         """Get a sample of size: sizeofsample , from a list of words: words
         returns a list of words of desired size.
@@ -136,7 +136,7 @@ def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
         else:
             return ' '.join(words[start:start + sizeofsample])
 
-        
+
 
     def create_samples(datadf, samplesdf, multiplier, sizeofsample, balanced=False):
         for index, row in datadf.iterrows():
@@ -149,7 +149,7 @@ def get_df_of_samples(df, multiplier, number_of_words, balanced=False):
                 for i in range(0, multiplier):  # number of samples per text
                     samplesdf = samplesdf.append(pd.Series([row[0], get_sample(allwords, sizeofsample)],
                                                          index=datadf.columns), ignore_index=True)
-        return samplesdf        
+        return samplesdf
 
     return create_samples(df, df_samples, multiplier, number_of_words, balanced)
 
@@ -248,7 +248,7 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
 
     # replace ! and ? with token
     df['Text'] = df['Text'].apply(lambda x: re.sub('\?|\!', ' EXPRESSION', x))
-    
+
     # remove all punctuation
     if punctuation_all == True:
         df["Text"] = df['Text'].str.replace('[^a-zA-Z]', ' ')
@@ -305,7 +305,7 @@ def split(df, dummy_y=None, test_size=0.2):
     if dummy_y is None:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], df['Label'], test_size=test_size,
                                                         stratify=df['Label'], shuffle=True, random_state=1)
-                                                        
+
     else:
         X_train, X_val, y_train, y_val = train_test_split(df['Text'], dummy_y, test_size=test_size,
                                                         stratify=dummy_y, shuffle=True, random_state=1)
@@ -510,7 +510,7 @@ def ml_algorithm(X_train_cv, y_train, model="KNN",neighbors=7, dropout=0.5,
         # Classifying with NN
 
         # Number of features
-        input_dim = X_train_cv.shape[1] 
+        input_dim = X_train_cv.shape[1]
         print(X_train_cv.shape)
         # Create model
         if dropout is not None:
@@ -601,7 +601,7 @@ def predict(df, cv, trymodel, model, x_data, y_data, X_train_cv=None, y_train=No
 
     if trymodel == "MLRP":
         data_predict = model.train(X=X_train_cv, Y=y_train, devX=X_cv, devY=y_data, epochs=epochs)
-    elif trymodel=="KNN": 
+    elif trymodel=="KNN":
         data_predict = model.predict(X_cv)
     elif trymodel == "NN":
         data_predict = model.predict_classes(X_cv.toarray())
@@ -610,7 +610,7 @@ def predict(df, cv, trymodel, model, x_data, y_data, X_train_cv=None, y_train=No
         y_data = np.array([np.where(elem==1)[0][0] for elem in y_data])
         y_data = np.argmax(np_utils.to_categorical(y_data), axis = 1)
         y_data = encoder.inverse_transform(y_data)
-        
+
     else:  # default to KNN, expandable to new models
         data_predict = model.predict(X_cv)
 
@@ -655,7 +655,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
         encoder = LabelEncoder()
         encoder.fit(df_cleaned.Label)
         encoded_Y = encoder.transform(df_cleaned.Label)
-        # convert integers to dummy variables 
+        # convert integers to dummy variables
         dummy_y = np_utils.to_categorical(encoded_Y)
     else:
         encoder = None # to always return an encoder, even if empty
@@ -683,7 +683,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
 # ---- TRAIN MODEL & PREDICT
     if trymodel == "KNN":
         in_use_model, train_accuracy = ml_algorithm(X_train_cv, y_train, model="KNN", neighbors=neighbors)
-        
+
         print("Train accuracy: {}".format(train_accuracy))
 
         if langmodel == "TFIDF":
@@ -723,7 +723,7 @@ def run_pipeline(sampled, multiply, words, balanced=True, stopwords=True, stemme
             data_predict, report, conf_matrix, scores = predict(df_cleaned, cv, trymodel, in_use_model, X_val, y_val,
                                                                 features=features, tfidf=tfidf, encoder=encoder)
         elif langmodel == "BOW":  # Bag of Words
-            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val, 
+            data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
                                                         features=features, encoder=encoder)
         else:   # default to Bag of Words
             data_predict, report, conf_matrix = predict(df_cleaned, cv, trymodel,  in_use_model, X_val, y_val,
@@ -772,8 +772,8 @@ def test(testset, cv, modeltotest, in_use_model, features, stop_words, stemming,
 #------------------------------------------------------------------------------------------------------------
 
 sampling = True               # whether to use sampling (T) or original (F)
-multiply = 2                  # multipler on sampling
-words = 1000                  # number of words per sample text
+multiply = 2                  # multiplier on sampling
+words = 50                   # number of words per sample text
 balancing = True              # balanced (T) or unbalanced sampling (F)
 stop_words = False            # whether to remove stopwords (T) or not (F)
 stemming = False              # whether to apply a Stemmer (T) or not (F)
@@ -781,12 +781,12 @@ langmodeltotest = "BOW"       # options "BOW, TFIDF"
 max_df = 0.9                  # CountVectorizer ignore terms that appear in more than (0.0-1) 0.0-100% of documents
 ngram = (1,3)                 # range of n-grams to be extracted (min,max)
 binary_vec = True             # Vectorizer counts or only notes presence (T)
-modeltotest = "KNN"           # option  "KNN,"MLRP","NN"
+modeltotest = "NN"            # option  "KNN,"MLRP","NN"
 neighbors = 7                 # number of neighbors to apply on KNN when used
 dropout = 0.5                 # for NN on modeltotest
 loss = "categorical_crossentropy"   # for NN on modeltotest
-epochs = 1                    # for NN or MLRP on modeltotest
-batch = 100                   # for NN on modeltotest
+epochs = 2                    # for NN or MLRP on modeltotest
+batch = 10                   # for NN on modeltotest
 features = False              # whether to add the extra features to train the model
 
 cv, in_use_model, features, X_train_cv, report, encoder_nn = run_pipeline(
