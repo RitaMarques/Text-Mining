@@ -237,10 +237,6 @@ def clean(dataframe, stopwords_bol=False, stemmer_bol=True, sampled_texts=False,
         sentence = []
         for word in row.Text.split(' '):
             if regexp.search(word):
-                # see the accuracy with both cases
-                    # replaces the ' with APOSTROPHE: dAPOSTROPHEangustia
-                #word = re.sub("\'", 'APOSTROPHE', word)
-                    # cuts the ' and adds a feature APOSTROPHE
                 word = re.sub("\'", '', word)  # em conjunto com o de baixo
                 word = word + " APOSTROPHE"  # caso o de cima aconteça
             sentence.append(normalize(word))
