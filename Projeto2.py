@@ -786,5 +786,20 @@ X_test_cv = cv.transform(df_cleaned_test['Text'])
 # Predict labels (using the final chosen model)
 test_predict = in_use_model.predict(X_test_cv)
 
+# IF NN don't run above line, run following two
+test_predict = in_use_model.predict_classes(X_test_cv.toarray())
+test_predict = encoder_nn.inverse_transform(test_predict)
+
 # Final predicted labels
 df_test_final_pred['Predicted labels'] = list(test_predict)
+
+# DELETE
+# Check performance on test set
+true_labels = ["José Saramago", "Almada Negreiros", "Luísa Marques Silva", "Eça de Queiros", "Camilo Castelo Branco", "José Rodrigues dos Santos",
+    "José Saramago", "Almada Negreiros", "Luísa Marques Silva", "Eça de Queiros", "Camilo Castelo Branco", "José Rodrigues dos Santos"]
+existing_labels = ['Almada Negreiros', 'Camilo Castelo Branco', 'Eça de Queirós', 'José Rodrigues dos Santos',
+              'José Saramago', 'Luísa Marques Silva']
+conf_matrix = confusion_matrix(list(test_predict), true_labels)
+report = classification_report(test_predict, true_labels)
+plot_cm(conf_matrix, existing_labels)
+print(report)
